@@ -31,6 +31,7 @@ var roleBuilder = {
             // find closest target that a path exists to
             var target = creep.pos.findClosestByPath(targets);
             if (!target) {
+                console.log("Builder creep found no energy sources!");
                 return;
             }
             if (target.structureType) {

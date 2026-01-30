@@ -63,6 +63,22 @@ var roleManager = {
                 // If roleStats isn't provided for some reason, skip this check
             }
 
+            // Prevent switching away from harvester if it would result in zero harvesters
+            if (
+                creep.memory.role === "harvester" &&
+                recommendedRole !== "harvester"
+            ) {
+                const harvesters =
+                    roleStats && roleStats.harvester ? roleStats.harvester : 0;
+                const harvestersAfterSwitch = harvesters - 1; // -1 for this creep switching away
+                if (harvestersAfterSwitch === 0) {
+                    console.log(
+                        `${creep.name}: cannot switch from harvester to ${recommendedRole} (would leave 0 harvesters)`,
+                    );
+                    recommendedRole = "harvester";
+                }
+            }
+
             // Update role if it changed
             if (creep.memory.role !== recommendedRole) {
                 console.log(
