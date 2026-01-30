@@ -28,17 +28,33 @@ var roleHarvester = {
                 });
             }
         } else {
-            var targets = creep.room.find(FIND_STRUCTURES, {
+            // Prioritize towers first for defense
+            var towers = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) => {
                     return (
-                        (structure.structureType == STRUCTURE_EXTENSION ||
-                            structure.structureType == STRUCTURE_SPAWN ||
-                            structure.structureType == STRUCTURE_TOWER ||
-                            structure.structureType == STRUCTURE_CONTAINER) &&
+                        structure.structureType == STRUCTURE_TOWER &&
                         structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
                     );
                 },
             });
+
+            var targets;
+            if (towers.length > 0) {
+                targets = towers;
+            } else {
+                targets = creep.room.find(FIND_STRUCTURES, {
+                    filter: (structure) => {
+                        return (
+                            (structure.structureType == STRUCTURE_EXTENSION ||
+                                structure.structureType == STRUCTURE_SPAWN ||
+                                structure.structureType ==
+                                    STRUCTURE_CONTAINER) &&
+                            structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+                        );
+                    },
+                });
+            }
+
             if (targets.length == 0) {
                 // take the energy to the controller
                 targets = creep.room.find(FIND_STRUCTURES, {
