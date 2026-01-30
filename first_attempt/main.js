@@ -3,7 +3,9 @@ var roleUpgrader = require("role.upgrader");
 var roleBuilder = require("role.builder");
 var roleRepairer = require("role.repairer");
 var spawner = require("spawner");
-const { filter } = require("lodash");
+var roleEvaluator = require("role.evaluator");
+var roleManager = require("role.manager");
+var creepUtils = require("creep.utils");
 
 module.exports.loop = function () {
     for (var name in Memory.creeps) {
@@ -13,34 +15,33 @@ module.exports.loop = function () {
         }
     }
 
-    var harvesters = _.filter(
-        Game.creeps,
-        (creep) => creep.memory.role == "harvester",
-    );
-    var builders = _.filter(
-        Game.creeps,
-        (creep) => creep.memory.role == "builder",
-    );
-    var upgraders = _.filter(
-        Game.creeps,
-        (creep) => creep.memory.role == "upgrader",
-    );
-    var repairers = _.filter(
-        Game.creeps,
-        (creep) => creep.memory.role == "repairer",
+    // console.log("=== ROLE SCORES ===");
+    // const scores = roleEvaluator.getScores(Game.spawns["Spawn1"].room);
+    // console.log(
+    //     `Harvester: ${scores.harvester.toFixed(2)}, Builder: ${scores.builder.toFixed(
+    //         2,
+    //     )}, Upgrader: ${scores.upgrader.toFixed(
+    //         2,
+    //     )}, Repairer: ${scores.repairer.toFixed(2)}`,
+    // );
+    // console.log(
+    //     "Recommended role:",
+    //     roleEvaluator.evaluateRole(Game.spawns["Spawn1"].room),
+    // );
+
+    // Assign roles to creeps based on room state
+    roleManager.manageAllCreeps(Game.spawns["Spawn1"].room);
+
+    const roleStats = roleManager.getRoleStats(Game.spawns["Spawn1"].room);
+    console.log(
+        `Active roles - Harvesters: ${roleStats.harvester}, Builders: ${roleStats.builder}, Upgraders: ${roleStats.upgrader}, Repairers: ${roleStats.repairer}`,
     );
 
-    console.log("Harvesters: " + harvesters.length);
-    console.log("Builders: " + builders.length);
-    console.log("Upgraders: " + upgraders.length);
-    console.log("Repairers: " + repairers.length);
+    // Spawn new creeps if below minimum
+    const creepCount = Object.keys(Game.creeps).length;
+    spawner.run(creepCount);
 
-    spawner.run(
-        harvesters.length,
-        builders.length,
-        upgraders.length,
-        repairers.length,
-    );
+    // console.log("Total creeps: " + creepCount);
 
     if (Game.spawns["Spawn1"].spawning) {
         var spawningCreep = Game.creeps[Game.spawns["Spawn1"].spawning.name];
@@ -75,8 +76,15 @@ module.exports.loop = function () {
         }
     }
 
+    // Pre-fetch terrain for efficiency (all creeps in same room for now)
+    const terrain = Game.map.getRoomTerrain(Game.spawns["Spawn1"].room.name);
+
     for (var name in Game.creeps) {
         var creep = Game.creeps[name];
+
+        // Perform common maintenance tasks
+        creepUtils.maintain(creep, terrain);
+
         if (creep.memory.role == "harvester") {
             roleHarvester.run(creep);
         }

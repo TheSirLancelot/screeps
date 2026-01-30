@@ -1,7 +1,12 @@
 var roleRepairer = {
     /** @param {Creep} creep **/
     run: function (creep) {
+        // Track previous repairing state to avoid spamming say
+        const prevRepairing = creep.memory.repairing;
+
         if (creep.store[RESOURCE_ENERGY] == 0) {
+            creep.memory.repairing = false;
+
             var sources = creep.room.find(FIND_SOURCES);
             var stores = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
@@ -16,7 +21,9 @@ var roleRepairer = {
                 return;
             }
             if (target.structureType) {
-                if (creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                if (
+                    creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE
+                ) {
                     creep.moveTo(target, {
                         visualizePathStyle: { stroke: "#ffaa00" },
                     });
@@ -27,6 +34,8 @@ var roleRepairer = {
                 });
             }
         } else {
+            creep.memory.repairing = true;
+
             var targets = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
                     structure.hits < structure.hitsMax &&
@@ -41,6 +50,14 @@ var roleRepairer = {
                     });
                 }
             }
+        }
+
+        // Announce state changes: 🔧 for repairing, ⛏️ for harvesting
+        if (creep.memory.repairing === true && prevRepairing !== true) {
+            creep.say("🔧");
+        }
+        if (creep.memory.repairing === false && prevRepairing !== false) {
+            creep.say("⛏️");
         }
     },
 };
