@@ -6,6 +6,7 @@ var spawner = require("spawner");
 var roleEvaluator = require("role.evaluator");
 var roleManager = require("role.manager");
 var creepUtils = require("creep.utils");
+var towerManager = require("tower.manager");
 
 module.exports.loop = function () {
     for (var name in Memory.creeps) {
@@ -14,20 +15,6 @@ module.exports.loop = function () {
             console.log("Clearing non-existing creep memory:", name);
         }
     }
-
-    // console.log("=== ROLE SCORES ===");
-    // const scores = roleEvaluator.getScores(Game.spawns["Spawn1"].room);
-    // console.log(
-    //     `Harvester: ${scores.harvester.toFixed(2)}, Builder: ${scores.builder.toFixed(
-    //         2,
-    //     )}, Upgrader: ${scores.upgrader.toFixed(
-    //         2,
-    //     )}, Repairer: ${scores.repairer.toFixed(2)}`,
-    // );
-    // console.log(
-    //     "Recommended role:",
-    //     roleEvaluator.evaluateRole(Game.spawns["Spawn1"].room),
-    // );
 
     // Assign roles to creeps based on room state
     roleManager.manageAllCreeps(Game.spawns["Spawn1"].room);
@@ -53,28 +40,8 @@ module.exports.loop = function () {
         );
     }
 
-    for (var roomName in Game.rooms) {
-        var room = Game.rooms[roomName];
-        var towers = room.find(FIND_STRUCTURES, {
-            filter: (structure) => structure.structureType == STRUCTURE_TOWER,
-        });
-        for (var i = 0; i < towers.length; i += 1) {
-            var tower = towers[i];
-            var closestDamagedStructure = tower.pos.findClosestByRange(
-                FIND_STRUCTURES,
-                { filter: (structure) => structure.hits < structure.hitsMax },
-            );
-            if (closestDamagedStructure) {
-                tower.repair(closestDamagedStructure);
-            }
-
-            var closestHostile =
-                tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
-            if (closestHostile) {
-                tower.attack(closestHostile);
-            }
-        }
-    }
+    // Run tower logic for all rooms
+    towerManager.runAll();
 
     // Pre-fetch terrain for efficiency (all creeps in same room for now)
     const terrain = Game.map.getRoomTerrain(Game.spawns["Spawn1"].room.name);
