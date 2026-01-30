@@ -1,15 +1,8 @@
 var roleHarvester = {
     /** @param {Creep} creep **/
     run: function (creep) {
-        // check if you're supposed to be a builder and there are construction sites
-        if (creep.name.includes("Builder")) {
-            var targets = creep.room.find(FIND_CONSTRUCTION_SITES);
-            if (targets.length) {
-                creep.memory["role"] = "builder";
-                return;
-            }
-        }
-
+        // track previous state to avoid spamming say
+        const prevHarvesting = creep.memory.harvesting;
         if (creep.memory.harvesting === undefined) {
             creep.memory.harvesting = creep.store[RESOURCE_ENERGY] == 0;
         }
@@ -18,6 +11,11 @@ var roleHarvester = {
         }
         if (!creep.memory.harvesting && creep.store[RESOURCE_ENERGY] == 0) {
             creep.memory.harvesting = true;
+        }
+
+        // Announce when switching into harvesting
+        if (creep.memory.harvesting === true && prevHarvesting !== true) {
+            creep.say("⛏️");
         }
 
         if (creep.memory.harvesting) {

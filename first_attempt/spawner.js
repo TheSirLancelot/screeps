@@ -1,3 +1,6 @@
+const MIN_CREEPS = 15;
+const CRITICAL_CREEPS = 5; // below this, spawn regardless of full energy
+
 function buildBodyForEnergy() {
     const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;
     const partsPerPair = 4;
@@ -66,51 +69,51 @@ function buildBodyForEnergy() {
 }
 
 var spawner = {
-    /** @param {int} harvesters, @param {int} builders, @param {int} upgraders, @param {int} repairers */
-    run: function (harvesters, builders, upgraders, repairers) {
-        const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;
-        const energyCapacity =
-            Game.spawns["Spawn1"].room.energyCapacityAvailable;
-        const canUseMax = energyAvailable === energyCapacity;
-        if (harvesters < 5) {
-            var newName = "Harvester" + Game.time;
-            console.log("Spawning new harvester: " + newName);
-            const body =
-                harvesters <= 2
-                    ? [WORK, CARRY, MOVE]
-                    : canUseMax
-                      ? buildBodyForEnergy()
-                      : null;
+    /**
+     * Spawns generic creeps until MIN_CREEPS is reached
+     * All creeps start as harvesters; role assignment happens elsewhere
+     */
+    run: function (creepCount) {
+        if (creepCount < MIN_CREEPS) {
+            const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;
+            const energyCapacity =
+                Game.spawns["Spawn1"].room.energyCapacityAvailable;
+            const criticallyLow = creepCount < CRITICAL_CREEPS;
+
+            // If not critically low, wait until energy is full before spawning
+            if (!criticallyLow && energyAvailable < energyCapacity) {
+                // waiting for full energy to build stronger creeps
+                return;
+            }
+
+            // Build appropriate body for available energy
+            let body;
+            if (energyAvailable >= energyCapacity) {
+                // Use full energy if available
+                body = buildBodyForEnergy();
+            } else if (criticallyLow) {
+                // If critically low, spawn minimal/better depending on energy
+                body =
+                    energyAvailable >= 200
+                        ? buildBodyForEnergy()
+                        : [WORK, CARRY, MOVE];
+            } else {
+                // This branch is unlikely because of the early return above,
+                // but fall back to a basic creep to be safe.
+                body = [WORK, CARRY, MOVE];
+            }
+
             if (body) {
+                const newName = "Creep" + Game.time;
+                console.log(
+                    "Spawning new creep: " +
+                        newName +
+                        " (criticallyLow=" +
+                        criticallyLow +
+                        ")",
+                );
                 Game.spawns["Spawn1"].spawnCreep(body, newName, {
                     memory: { role: "harvester" },
-                });
-            }
-        } else if (repairers < 2) {
-            var newName = "Repairer" + Game.time;
-            console.log("Spawning new repairer: " + newName);
-            const body = canUseMax ? buildBodyForEnergy() : null;
-            if (body) {
-                Game.spawns["Spawn1"].spawnCreep(body, newName, {
-                    memory: { role: "repairer" },
-                });
-            }
-        } else if (builders < 3) {
-            var newName = "Builder" + Game.time;
-            console.log("Spawning new builder: " + newName);
-            const body = canUseMax ? buildBodyForEnergy() : null;
-            if (body) {
-                Game.spawns["Spawn1"].spawnCreep(body, newName, {
-                    memory: { role: "builder" },
-                });
-            }
-        } else if (upgraders < 2) {
-            var newName = "Upgrader" + Game.time;
-            console.log("Spawning new upgrader: " + newName);
-            const body = canUseMax ? buildBodyForEnergy() : null;
-            if (body) {
-                Game.spawns["Spawn1"].spawnCreep(body, newName, {
-                    memory: { role: "upgrader" },
                 });
             }
         }
