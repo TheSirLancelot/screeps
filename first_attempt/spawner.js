@@ -1,5 +1,7 @@
-const MIN_CREEPS = 15;
-const CRITICAL_CREEPS = 5; // below this, spawn regardless of full energy
+var config = require("config");
+
+const MIN_CREEPS = config.MIN_CREEPS;
+const CRITICAL_CREEPS = config.CRITICAL_CREEPS;
 
 function buildBodyForEnergy() {
     const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;

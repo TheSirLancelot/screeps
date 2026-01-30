@@ -3,6 +3,8 @@
  * Common behaviors and utilities for all creeps
  */
 
+var config = require("config");
+
 var creepUtils = {
     /**
      * Check if creep is standing on a road and build one if needed
@@ -11,7 +13,7 @@ var creepUtils = {
      */
     buildRoadIfNeeded: function (creep, terrain) {
         // Only check periodically to avoid spam
-        if (Game.time % 5 !== 0) {
+        if (Game.time % config.ROAD_BUILD_INTERVAL !== 0) {
             return;
         }
 

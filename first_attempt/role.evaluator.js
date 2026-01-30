@@ -3,15 +3,7 @@
  * Analyzes current game state and recommends roles based on what's needed
  */
 
-// Score multipliers - adjust these to change role priority
-const ROLE_SCORES = {
-    BUILDER_SITE_SCORE: 10, // per construction site
-    REPAIRER_DAMAGE_SCORE: 8, // per damaged structure
-    REPAIRER_CRITICAL_SCORE: 20, // per critical structure
-    HARVESTER_ENERGY_DIVISOR: 100, // total source energy divided by this
-    HARVESTER_FALLBACK_SCORE: 5, // when sources empty but storage has energy
-    UPGRADER_PROGRESS_SCORE: 15, // scaled by room controller progress
-};
+var config = require("config");
 
 var roleEvaluator = {
     /**
@@ -23,7 +15,9 @@ var roleEvaluator = {
         let score = 0;
         const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
         if (constructionSites.length > 0) {
-            score += constructionSites.length * ROLE_SCORES.BUILDER_SITE_SCORE;
+            score +=
+                constructionSites.length *
+                config.ROLE_SCORES.BUILDER_SITE_SCORE;
         }
         return score;
     },
@@ -44,7 +38,8 @@ var roleEvaluator = {
         });
         if (damagedStructures.length > 0) {
             score +=
-                damagedStructures.length * ROLE_SCORES.REPAIRER_DAMAGE_SCORE;
+                damagedStructures.length *
+                config.ROLE_SCORES.REPAIRER_DAMAGE_SCORE;
         }
 
         // Emergency boost for critical structures
@@ -57,7 +52,8 @@ var roleEvaluator = {
         });
         if (criticalDamaged.length > 0) {
             score +=
-                criticalDamaged.length * ROLE_SCORES.REPAIRER_CRITICAL_SCORE;
+                criticalDamaged.length *
+                config.ROLE_SCORES.REPAIRER_CRITICAL_SCORE;
         }
 
         return score;
@@ -101,7 +97,8 @@ var roleEvaluator = {
             const controllerProgressMax = controller.progressTotal || 200000;
             const progressPercent = controllerProgress / controllerProgressMax;
             score +=
-                (1 - progressPercent) * ROLE_SCORES.UPGRADER_PROGRESS_SCORE;
+                (1 - progressPercent) *
+                config.ROLE_SCORES.UPGRADER_PROGRESS_SCORE;
         }
 
         return score;

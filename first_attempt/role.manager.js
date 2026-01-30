@@ -4,9 +4,7 @@
  */
 
 var roleEvaluator = require("role.evaluator");
-
-// How often creeps should re-evaluate their role (in ticks)
-const ROLE_REEVALUATE_INTERVAL = 10;
+var config = require("config");
 
 // Icons for each role
 const ROLE_ICONS = {
@@ -23,11 +21,11 @@ var roleManager = {
      * @param {Creep} creep - The creep to evaluate
      * @param {Room} room - The room context
      */
-    evaluateCreep: function (creep, room) {
+    evaluateCreep: function (creep, room, roleStats) {
         // Stagger evaluations based on creep TTL so not all creeps evaluate at once
+        // Evaluate when TTL modulo interval is zero to spread checks naturally
         const shouldReevaluate =
-            creep.ticksToLive % ROLE_REEVALUATE_INTERVAL ===
-            Game.time % ROLE_REEVALUATE_INTERVAL;
+            creep.ticksToLive % config.ROLE_REEVALUATE_INTERVAL === 0;
 
         if (shouldReevaluate) {
             let recommendedRole = roleEvaluator.evaluateRole(room, creep);
@@ -45,6 +43,24 @@ var roleManager = {
                     `${creep.name}: forcing role to harvester (room population ${totalCreeps} < 10)`,
                 );
                 recommendedRole = "harvester";
+            }
+
+            // If there are currently no harvesters (or very few), prioritize creating at least one
+            // This prevents situations where all creeps are non-harvesters (e.g. all builders)
+            try {
+                const harvesters =
+                    roleStats && roleStats.harvester ? roleStats.harvester : 0;
+                if (
+                    harvesters < config.MIN_HARVESTERS &&
+                    recommendedRole !== "harvester"
+                ) {
+                    console.log(
+                        `${creep.name}: forcing role to harvester (harvesters ${harvesters} < ${config.MIN_HARVESTERS})`,
+                    );
+                    recommendedRole = "harvester";
+                }
+            } catch (e) {
+                // If roleStats isn't provided for some reason, skip this check
             }
 
             // Update role if it changed
@@ -65,10 +81,12 @@ var roleManager = {
      * @param {Room} room - The room to manage creeps in
      */
     manageAllCreeps: function (room) {
+        // Compute role stats once and pass into per-creep evaluation to avoid repeated work
+        const stats = this.getRoleStats(room);
         for (var name in Game.creeps) {
             var creep = Game.creeps[name];
             if (creep.room === room) {
-                this.evaluateCreep(creep, room);
+                this.evaluateCreep(creep, room, stats);
             }
         }
     },
