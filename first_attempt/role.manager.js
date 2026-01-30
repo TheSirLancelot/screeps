@@ -30,6 +30,15 @@ var roleManager = {
         if (shouldReevaluate) {
             let recommendedRole = roleEvaluator.evaluateRole(room, creep);
 
+            // EMERGENCY: If hostiles in room, everyone becomes harvester to keep towers full
+            const hostiles = room.find(FIND_HOSTILE_CREEPS);
+            if (hostiles.length > 0 && recommendedRole !== "harvester") {
+                console.log(
+                    `${creep.name}: EMERGENCY - forcing role to harvester (${hostiles.length} hostiles in room)`,
+                );
+                recommendedRole = "harvester";
+            }
+
             // If population in this room is low, force harvesters to prioritize energy
             let totalCreeps = 0;
             for (const cname in Game.creeps) {
