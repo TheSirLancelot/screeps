@@ -42,17 +42,47 @@ var roleHarvester = {
             if (towers.length > 0) {
                 targets = towers;
             } else {
-                targets = creep.room.find(FIND_STRUCTURES, {
+                // Then spawns
+                var spawns = creep.room.find(FIND_STRUCTURES, {
                     filter: (structure) => {
                         return (
-                            (structure.structureType == STRUCTURE_EXTENSION ||
-                                structure.structureType == STRUCTURE_SPAWN ||
-                                structure.structureType ==
-                                    STRUCTURE_CONTAINER) &&
+                            structure.structureType == STRUCTURE_SPAWN &&
                             structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
                         );
                     },
                 });
+                if (spawns.length > 0) {
+                    targets = spawns;
+                } else {
+                    // Then extensions
+                    var extensions = creep.room.find(FIND_STRUCTURES, {
+                        filter: (structure) => {
+                            return (
+                                structure.structureType ==
+                                    STRUCTURE_EXTENSION &&
+                                structure.store.getFreeCapacity(
+                                    RESOURCE_ENERGY,
+                                ) > 0
+                            );
+                        },
+                    });
+                    if (extensions.length > 0) {
+                        targets = extensions;
+                    } else {
+                        // Finally containers
+                        targets = creep.room.find(FIND_STRUCTURES, {
+                            filter: (structure) => {
+                                return (
+                                    structure.structureType ==
+                                        STRUCTURE_CONTAINER &&
+                                    structure.store.getFreeCapacity(
+                                        RESOURCE_ENERGY,
+                                    ) > 0
+                                );
+                            },
+                        });
+                    }
+                }
             }
 
             if (targets.length == 0) {
