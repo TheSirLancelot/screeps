@@ -10,6 +10,9 @@ var config = {
     // Role Manager - minimum number of harvesters to maintain
     MIN_HARVESTERS: 3,
 
+    // Role Manager - maximum number of harvesters to maintain
+    MAX_HARVESTERS: 8,
+
     // Role Manager - minimum number of haulers to maintain (when storage exists)
     MIN_HAULERS: 3,
 

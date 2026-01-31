@@ -25,11 +25,19 @@ var roleManager = {
     evaluateCreep: function (creep, room, roleStats) {
         // Stagger evaluations based on creep TTL so not all creeps evaluate at once
         // Evaluate when TTL modulo interval is zero to spread checks naturally
+        if (creep.memory.roleCheckOffset === undefined) {
+            creep.memory.roleCheckOffset = Math.floor(
+                Math.random() * config.ROLE_REEVALUATE_INTERVAL,
+            );
+        }
         const shouldReevaluate =
-            creep.ticksToLive % config.ROLE_REEVALUATE_INTERVAL === 0;
+            (creep.ticksToLive + creep.memory.roleCheckOffset) %
+                config.ROLE_REEVALUATE_INTERVAL ===
+            0;
 
         if (shouldReevaluate) {
             let recommendedRole = roleEvaluator.evaluateRole(room, creep);
+            let forcedHarvester = false;
 
             // EMERGENCY: If hostiles in room, everyone becomes harvester to keep towers full
             const hostiles = room.find(FIND_HOSTILE_CREEPS);
@@ -38,6 +46,7 @@ var roleManager = {
                     `${creep.name}: EMERGENCY - forcing role to harvester (${hostiles.length} hostiles in room)`,
                 );
                 recommendedRole = "harvester";
+                forcedHarvester = true;
             }
 
             // If population in this room is low, force harvesters to prioritize energy
@@ -53,6 +62,7 @@ var roleManager = {
                     `${creep.name}: forcing role to harvester (room population ${totalCreeps} < 10)`,
                 );
                 recommendedRole = "harvester";
+                forcedHarvester = true;
             }
 
             // If there are currently no harvesters (or very few), prioritize creating at least one
@@ -68,9 +78,36 @@ var roleManager = {
                         `${creep.name}: forcing role to harvester (harvesters ${harvesters} < ${config.MIN_HARVESTERS})`,
                     );
                     recommendedRole = "harvester";
+                    forcedHarvester = true;
                 }
             } catch (e) {
                 // If roleStats isn't provided for some reason, skip this check
+            }
+
+            // If at/over max harvesters, avoid assigning more harvesters unless forced
+            if (!forcedHarvester && recommendedRole === "harvester") {
+                const harvesters =
+                    roleStats && roleStats.harvester ? roleStats.harvester : 0;
+                if (harvesters >= config.MAX_HARVESTERS) {
+                    const scores = roleEvaluator.getScores(room);
+                    let bestRole = null;
+                    let bestScore = -1;
+                    for (const role in scores) {
+                        if (role === "harvester") {
+                            continue;
+                        }
+                        if (scores[role] > bestScore) {
+                            bestScore = scores[role];
+                            bestRole = role;
+                        }
+                    }
+                    if (bestRole) {
+                        console.log(
+                            `${creep.name}: avoiding harvester (harvesters ${harvesters} >= ${config.MAX_HARVESTERS}); choosing ${bestRole}`,
+                        );
+                        recommendedRole = bestRole;
+                    }
+                }
             }
 
             // Prevent switching away from harvester if it would result in zero harvesters

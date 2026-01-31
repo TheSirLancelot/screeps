@@ -19,15 +19,29 @@ var roleHauler = {
         }
 
         if (creep.memory.hauling) {
-            // Get energy from storage
+            // Get energy from storage first, then containers if storage is empty
             var storage = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
                     structure.structureType === STRUCTURE_STORAGE &&
                     structure.store[RESOURCE_ENERGY] > 0,
             });
 
+            var containers = creep.room.find(FIND_STRUCTURES, {
+                filter: (structure) =>
+                    structure.structureType === STRUCTURE_CONTAINER &&
+                    structure.store[RESOURCE_ENERGY] > 0,
+            });
+
+            var target = null;
             if (storage.length > 0) {
-                var target = storage[0];
+                target = storage[0];
+            } else if (containers.length > 0) {
+                target = creep.pos.findClosestByPath(containers);
+            }
+
+            if (target) {
+                creep.memory.haulerSourceType = target.structureType;
+                creep.memory.haulerSourceId = target.id;
                 if (
                     creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE
                 ) {
@@ -92,9 +106,18 @@ var roleHauler = {
                                 );
                             },
                         });
-                        if (containers.length > 0) {
-                            targets = containers;
-                        } else {
+                        if (
+                            containers.length > 0 &&
+                            creep.memory.haulerSourceType !==
+                                STRUCTURE_CONTAINER
+                        ) {
+                            // Avoid container->container loops when source was a container
+                            targets = containers.filter(
+                                (c) => c.id !== creep.memory.haulerSourceId,
+                            );
+                        }
+
+                        if (targets.length === 0) {
                             // Priority 5: Controller (upgrade)
                             if (
                                 creep.room.controller &&
