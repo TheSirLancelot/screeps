@@ -72,11 +72,14 @@ function buildBodyForEnergy() {
 
 var spawner = {
     /**
-     * Spawns generic creeps until MIN_CREEPS is reached
+     * Spawns generic creeps until the calculated minimum is reached
      * All creeps start as harvesters; role assignment happens elsewhere
+     * @param {number} creepCount - Current number of creeps
+     * @param {number} calculatedMin - Dynamically calculated minimum (uses MIN_CREEPS as floor)
      */
-    run: function (creepCount) {
-        if (creepCount < MIN_CREEPS) {
+    run: function (creepCount, calculatedMin) {
+        const effectiveMin = Math.max(calculatedMin, MIN_CREEPS);
+        if (creepCount < effectiveMin) {
             const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;
             const energyCapacity =
                 Game.spawns["Spawn1"].room.energyCapacityAvailable;
