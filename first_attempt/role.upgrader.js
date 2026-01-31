@@ -23,28 +23,19 @@ var roleUpgrader = {
                 });
             }
         } else {
-            // TODO: If no energy sources/containers are available, add fallback behavior.
-            var sources = creep.room.find(FIND_SOURCES);
+            // TODO: If no energy from storage/containers available, add fallback behavior.
             var stores = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
-                    (structure.structureType == STRUCTURE_CONTAINER ||
-                        structure.structureType == STRUCTURE_STORAGE) &&
+                    (structure.structureType == STRUCTURE_STORAGE ||
+                        structure.structureType == STRUCTURE_CONTAINER) &&
                     structure.store[RESOURCE_ENERGY] > 0,
             });
-            var targets = sources.concat(stores);
+            var targets = stores;
             var target = creep.pos.findClosestByPath(targets);
             if (!target) {
                 return;
             }
-            if (target.structureType) {
-                if (
-                    creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE
-                ) {
-                    creep.moveTo(target, {
-                        visualizePathStyle: { stroke: "#ffaa00" },
-                    });
-                }
-            } else if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
+            if (creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
                 creep.moveTo(target, {
                     visualizePathStyle: { stroke: "#ffaa00" },
                 });

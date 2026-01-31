@@ -29,151 +29,110 @@ var roleHarvester = {
                 });
             }
         } else {
-            // Initialize room memory for tower tracking if needed
-            if (creep.room.memory.towerBeingServiced === undefined) {
-                creep.room.memory.towerBeingServiced = false;
-            }
-            if (creep.room.memory.towerServicedBy === undefined) {
-                creep.room.memory.towerServicedBy = null;
-            }
-
-            // Prioritize towers first for defense
-            var towers = creep.room.find(FIND_STRUCTURES, {
-                filter: (structure) => {
-                    return (
-                        structure.structureType == STRUCTURE_TOWER &&
-                        structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
-                    );
-                },
+            // Deliver energy only to storage
+            var storage = creep.room.find(FIND_STRUCTURES, {
+                filter: (structure) =>
+                    structure.structureType == STRUCTURE_STORAGE &&
+                    structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
             });
 
-            // Check if tower is above 50% AND already being serviced by another harvester
-            var skipTower = false;
-            if (towers.length > 0) {
-                const tower = towers[0]; //TODO: handle multiple towers
-                const towerPercent =
-                    tower.store[RESOURCE_ENERGY] /
-                    tower.store.getCapacity(RESOURCE_ENERGY);
-
-                // Skip tower only if above 50% AND another harvester is already servicing it
+            if (storage.length > 0) {
+                var target = storage[0];
                 if (
-                    towerPercent > 0.5 &&
-                    creep.room.memory.towerBeingServiced &&
-                    creep.memory.servicingTower !== true
+                    creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE
                 ) {
-                    skipTower = true;
+                    creep.moveTo(target, {
+                        visualizePathStyle: { stroke: "#ffffff" },
+                    });
                 }
-            }
-
-            var targets;
-            if (towers.length > 0 && !skipTower) {
-                targets = towers;
-                // Mark that this creep is servicing the tower
-                creep.memory.servicingTower = true;
-                creep.room.memory.towerBeingServiced = true;
-                creep.room.memory.towerServicedBy = creep.name;
             } else {
-                // Clear servicing flag if not targeting tower
-                if (creep.memory.servicingTower) {
-                    creep.memory.servicingTower = false;
-                    if (creep.room.memory.towerServicedBy === creep.name) {
-                        creep.room.memory.towerBeingServiced = false;
-                        creep.room.memory.towerServicedBy = null;
-                    }
-                }
+                // Storage full or doesn't exist - fallback priority: Spawn > extensions > tower > containers > controller
+                var targets = [];
 
-                // Then spawns
+                // Priority 1: Spawns
                 var spawns = creep.room.find(FIND_STRUCTURES, {
-                    filter: (structure) => {
-                        return (
-                            structure.structureType == STRUCTURE_SPAWN &&
-                            structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
-                        );
-                    },
+                    filter: (structure) =>
+                        structure.structureType == STRUCTURE_SPAWN &&
+                        structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
                 });
                 if (spawns.length > 0) {
                     targets = spawns;
                 } else {
-                    // Then extensions
+                    // Priority 2: Extensions
                     var extensions = creep.room.find(FIND_STRUCTURES, {
-                        filter: (structure) => {
-                            return (
-                                structure.structureType ==
-                                    STRUCTURE_EXTENSION &&
-                                structure.store.getFreeCapacity(
-                                    RESOURCE_ENERGY,
-                                ) > 0
-                            );
-                        },
+                        filter: (structure) =>
+                            structure.structureType == STRUCTURE_EXTENSION &&
+                            structure.store.getFreeCapacity(RESOURCE_ENERGY) >
+                                0,
                     });
                     if (extensions.length > 0) {
                         targets = extensions;
                     } else {
-                        // Finally containers
-                        targets = creep.room.find(FIND_STRUCTURES, {
-                            filter: (structure) => {
-                                return (
+                        // Priority 3: Towers
+                        var towers = creep.room.find(FIND_STRUCTURES, {
+                            filter: (structure) =>
+                                structure.structureType == STRUCTURE_TOWER &&
+                                structure.store.getFreeCapacity(
+                                    RESOURCE_ENERGY,
+                                ) > 0,
+                        });
+                        if (towers.length > 0) {
+                            targets = towers;
+                        } else {
+                            // Priority 4: Containers
+                            var containers = creep.room.find(FIND_STRUCTURES, {
+                                filter: (structure) =>
                                     structure.structureType ==
                                         STRUCTURE_CONTAINER &&
                                     structure.store.getFreeCapacity(
                                         RESOURCE_ENERGY,
-                                    ) > 0
-                                );
-                            },
-                        });
-                    }
-                }
-            }
-
-            if (targets.length == 0) {
-                // TODO: FIX - controller is not a structure in FIND_STRUCTURES; use room.controller fallback.
-                // take the energy to the controller
-                targets = creep.room.find(FIND_STRUCTURES, {
-                    filter: (structure) => {
-                        return structure.structureType == STRUCTURE_CONTROLLER;
-                    },
-                });
-            }
-            // TODO: If no transfer targets exist, add fallback (upgrade controller or move to rally).
-            while (targets.length > 0 && creep.store[RESOURCE_ENERGY] > 0) {
-                // get closest target to transfer to
-                var target = creep.pos.findClosestByPath(targets);
-                if (!target) {
-                    break;
-                }
-                if (
-                    target.store &&
-                    target.store.getFreeCapacity(RESOURCE_ENERGY) == 0
-                ) {
-                    targets = targets.filter(
-                        (structure) => structure.id != target.id,
-                    );
-                    continue;
-                }
-                var result = creep.transfer(target, RESOURCE_ENERGY);
-                if (result == ERR_NOT_IN_RANGE) {
-                    creep.moveTo(target, {
-                        visualizePathStyle: { stroke: "#ffffff" },
-                    });
-                    break;
-                }
-                if (result == OK) {
-                    if (target.structureType == STRUCTURE_TOWER) {
-                        if (creep.room.memory.towerServicedBy === creep.name) {
-                            creep.room.memory.towerBeingServiced = false;
-                            creep.room.memory.towerServicedBy = null;
+                                    ) > 0,
+                            });
+                            if (containers.length > 0) {
+                                targets = containers;
+                            } else {
+                                // Priority 5: Controller (upgrade)
+                                if (
+                                    creep.room.controller &&
+                                    creep.room.controller.my
+                                ) {
+                                    targets = [creep.room.controller];
+                                }
+                            }
                         }
-                        creep.memory.servicingTower = false;
                     }
-                    break;
                 }
-                if (result == ERR_FULL || result == ERR_INVALID_TARGET) {
-                    targets = targets.filter(
-                        (structure) => structure.id != target.id,
-                    );
-                    continue;
+
+                if (targets.length > 0) {
+                    var target = creep.pos.findClosestByPath(targets);
+                    if (target) {
+                        if (target.structureType === STRUCTURE_CONTROLLER) {
+                            // Upgrade controller
+                            if (
+                                creep.upgradeController(target) ==
+                                ERR_NOT_IN_RANGE
+                            ) {
+                                creep.moveTo(target, {
+                                    visualizePathStyle: {
+                                        stroke: "#ffffff",
+                                    },
+                                });
+                            }
+                        } else {
+                            // Transfer energy
+                            if (
+                                creep.transfer(target, RESOURCE_ENERGY) ==
+                                ERR_NOT_IN_RANGE
+                            ) {
+                                creep.moveTo(target, {
+                                    visualizePathStyle: {
+                                        stroke: "#ffffff",
+                                    },
+                                });
+                            }
+                        }
+                    }
                 }
-                break;
             }
         }
     },

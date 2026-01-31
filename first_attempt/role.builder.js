@@ -21,29 +21,24 @@ var roleBuilder = {
                 }
             }
         } else {
-            // TODO: If no energy sources/containers are available, set a fallback behavior.
-            var sources = creep.room.find(FIND_SOURCES);
+            // TODO: If no energy from storage/containers available, set a fallback behavior.
             var stores = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
-                    (structure.structureType == STRUCTURE_CONTAINER ||
-                        structure.structureType == STRUCTURE_STORAGE) &&
+                    (structure.structureType == STRUCTURE_STORAGE ||
+                        structure.structureType == STRUCTURE_CONTAINER) &&
                     structure.store[RESOURCE_ENERGY] > 0,
             });
-            var targets = sources.concat(stores);
+            var targets = stores;
             // find closest target that a path exists to
             var target = creep.pos.findClosestByPath(targets);
             if (!target) {
-                console.log("Builder creep found no energy sources!");
+                console.log(
+                    "Builder creep found no energy in storage/containers!",
+                );
                 return;
             }
-            if (target.structureType) {
-                var result = creep.withdraw(target, RESOURCE_ENERGY);
-                if (result == ERR_NOT_IN_RANGE) {
-                    creep.moveTo(target, {
-                        visualizePathStyle: { stroke: "#ffaa00" },
-                    });
-                }
-            } else if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
+            var result = creep.withdraw(target, RESOURCE_ENERGY);
+            if (result == ERR_NOT_IN_RANGE) {
                 creep.moveTo(target, {
                     visualizePathStyle: { stroke: "#ffaa00" },
                 });

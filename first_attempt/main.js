@@ -2,6 +2,7 @@ var roleHarvester = require("role.harvester");
 var roleUpgrader = require("role.upgrader");
 var roleBuilder = require("role.builder");
 var roleRepairer = require("role.repairer");
+var roleHauler = require("role.hauler");
 var spawner = require("spawner");
 var roleEvaluator = require("role.evaluator");
 var roleManager = require("role.manager");
@@ -39,7 +40,7 @@ module.exports.loop = function () {
               ? `waiting (${energyAvailable}/${energyCapacity}E)`
               : `idle`;
         console.log(
-            `[Tick ${Game.time}] Creeps: ${creepCount}/${recommendedMinCreeps} (H=${roleStats.harvester} B=${roleStats.builder} U=${roleStats.upgrader} R=${roleStats.repairer}) | Spawner: ${spawningStatus}`,
+            `[Tick ${Game.time}] Creeps: ${creepCount}/${recommendedMinCreeps} (H=${roleStats.harvester} B=${roleStats.builder} U=${roleStats.upgrader} R=${roleStats.repairer} Ha=${roleStats.hauler}) | Spawner: ${spawningStatus}`,
         );
     }
 
@@ -81,6 +82,9 @@ module.exports.loop = function () {
         }
         if (creep.memory.role == "repairer") {
             roleRepairer.run(creep);
+        }
+        if (creep.memory.role == "hauler") {
+            roleHauler.run(creep);
         }
     }
 };
