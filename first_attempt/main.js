@@ -21,17 +21,18 @@ module.exports.loop = function () {
     roleManager.manageAllCreeps(Game.spawns["Spawn1"].room);
 
     const roleStats = roleManager.getRoleStats(Game.spawns["Spawn1"].room);
-    
+
     // Calculate ideal creep composition
     const recommendedMinCreeps = creepCalculator.calculateMinCreeps(
         Game.spawns["Spawn1"].room,
     );
-    
+
     // Log status every 10 ticks to avoid spam
     const creepCount = Object.keys(Game.creeps).length;
     if (Game.time % 10 === 0) {
         const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;
-        const energyCapacity = Game.spawns["Spawn1"].room.energyCapacityAvailable;
+        const energyCapacity =
+            Game.spawns["Spawn1"].room.energyCapacityAvailable;
         const spawningStatus = Game.spawns["Spawn1"].spawning
             ? `spawning`
             : creepCount < recommendedMinCreeps
