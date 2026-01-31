@@ -11,7 +11,7 @@ var config = {
     MIN_HARVESTERS: 1,
 
     // Spawner - target number of creeps to maintain
-    MIN_CREEPS: 15,
+    MIN_CREEPS: 10,
 
     // Spawner - population threshold below which to spawn even without full energy
     CRITICAL_CREEPS: 5,

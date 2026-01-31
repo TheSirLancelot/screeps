@@ -7,6 +7,7 @@ var roleEvaluator = require("role.evaluator");
 var roleManager = require("role.manager");
 var creepUtils = require("creep.utils");
 var towerManager = require("tower.manager");
+var creepCalculator = require("creep.calculator");
 
 module.exports.loop = function () {
     for (var name in Memory.creeps) {
@@ -24,9 +25,14 @@ module.exports.loop = function () {
         `Active roles - Harvesters: ${roleStats.harvester}, Builders: ${roleStats.builder}, Upgraders: ${roleStats.upgrader}, Repairers: ${roleStats.repairer}`,
     );
 
+    // Calculate ideal creep composition
+    const recommendedMinCreeps = creepCalculator.calculateMinCreeps(
+        Game.spawns["Spawn1"].room,
+    );
+
     // Spawn new creeps if below minimum
     const creepCount = Object.keys(Game.creeps).length;
-    spawner.run(creepCount);
+    spawner.run(creepCount, recommendedMinCreeps);
 
     // console.log("Total creeps: " + creepCount);
 
