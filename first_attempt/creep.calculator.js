@@ -105,11 +105,30 @@ var creepCalculator = {
         let repairersNeeded = scores.repairer > 0 ? 1 : 0;
         let upgradersNeeded = scores.upgrader > 0 ? 1 : 0;
 
+        // Calculate haulers needed (only if storage exists)
+        let haulersNeeded = 0;
+        if (storage.length > 0) {
+            // Haulers distribute energy from storage to various structures
+            // Estimate: need roughly 1 hauler per energy demand destination
+            const energyNeedingStructures = room.find(FIND_STRUCTURES, {
+                filter: (structure) =>
+                    (structure.structureType === STRUCTURE_SPAWN ||
+                        structure.structureType === STRUCTURE_EXTENSION ||
+                        structure.structureType === STRUCTURE_TOWER ||
+                        structure.structureType === STRUCTURE_CONTAINER) &&
+                    structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+            }).length;
+            // Rough heuristic: 1 hauler per 3 energy-needing structures
+            haulersNeeded = Math.ceil(energyNeedingStructures / 3);
+            haulersNeeded = Math.max(haulersNeeded, 1); // At least 1 if storage exists
+        }
+
         const recommendedTotal =
             harvestersNeeded +
             buildersNeeded +
             repairersNeeded +
-            upgradersNeeded;
+            upgradersNeeded +
+            haulersNeeded;
 
         return recommendedTotal;
     },

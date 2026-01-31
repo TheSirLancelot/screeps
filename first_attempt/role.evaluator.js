@@ -105,6 +105,38 @@ var roleEvaluator = {
     },
 
     /**
+     * Calculate hauler role score based on storage and energy-needing structures
+     * @param {Room} room - The room to evaluate
+     * @returns {number} Score for hauler role
+     */
+    _scoreHauler: function (room) {
+        let score = 0;
+
+        // Check if storage exists
+        const storage = room.find(FIND_STRUCTURES, {
+            filter: (s) => s.structureType === STRUCTURE_STORAGE,
+        });
+        if (storage.length === 0) {
+            return 0; // No haulers needed without storage
+        }
+
+        // Count structures that need energy
+        const energyNeedingStructures = room.find(FIND_STRUCTURES, {
+            filter: (structure) =>
+                (structure.structureType === STRUCTURE_SPAWN ||
+                    structure.structureType === STRUCTURE_EXTENSION ||
+                    structure.structureType === STRUCTURE_TOWER ||
+                    structure.structureType === STRUCTURE_CONTAINER) &&
+                structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+        });
+
+        // Score based on how many structures need energy
+        score += energyNeedingStructures.length * 5;
+
+        return score;
+    },
+
+    /**
      * Determine the role with the highest score
      * @param {Object} scores - Object with role scores
      * @returns {string} Recommended role
@@ -127,7 +159,7 @@ var roleEvaluator = {
      * Evaluates the current room state and returns recommended role
      * @param {Room} room - The room to evaluate
      * @param {Creep} creep - The creep needing a role (optional, for context)
-     * @returns {string} Recommended role: "harvester", "builder", "upgrader", or "repairer"
+     * @returns {string} Recommended role: "harvester", "builder", "upgrader", "repairer", or "hauler"
      */
     evaluateRole: function (room, creep) {
         const scores = {
@@ -135,6 +167,7 @@ var roleEvaluator = {
             builder: this._scoreBuilder(room),
             upgrader: this._scoreUpgrader(room),
             repairer: this._scoreRepairer(room),
+            hauler: this._scoreHauler(room),
         };
 
         return this._selectHighestScoredRole(scores);
@@ -151,6 +184,7 @@ var roleEvaluator = {
             builder: this._scoreBuilder(room),
             upgrader: this._scoreUpgrader(room),
             repairer: this._scoreRepairer(room),
+            hauler: this._scoreHauler(room),
         };
     },
 };

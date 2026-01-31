@@ -10,6 +10,9 @@ var config = {
     // Role Manager - minimum number of harvesters to maintain
     MIN_HARVESTERS: 1,
 
+    // Role Manager - minimum number of haulers to maintain (when storage exists)
+    MIN_HAULERS: 1,
+
     // Spawner - target number of creeps to maintain
     MIN_CREEPS: 10,
 

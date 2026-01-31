@@ -12,6 +12,7 @@ const ROLE_ICONS = {
     builder: "🚧",
     upgrader: "⚡",
     repairer: "🔧",
+    hauler: "📦",
 };
 
 var roleManager = {
@@ -88,6 +89,50 @@ var roleManager = {
                 }
             }
 
+            // If there are currently no haulers (or very few), prioritize creating at least one
+            // This prevents logistics failures when storage exists
+            try {
+                const storage = room.find(FIND_STRUCTURES, {
+                    filter: (s) => s.structureType === STRUCTURE_STORAGE,
+                });
+                if (storage.length > 0) {
+                    const haulers =
+                        roleStats && roleStats.hauler ? roleStats.hauler : 0;
+                    if (
+                        haulers < config.MIN_HAULERS &&
+                        recommendedRole !== "hauler"
+                    ) {
+                        console.log(
+                            `${creep.name}: forcing role to hauler (haulers ${haulers} < ${config.MIN_HAULERS})`,
+                        );
+                        recommendedRole = "hauler";
+                    }
+                }
+            } catch (e) {
+                // If roleStats isn't provided for some reason, skip this check
+            }
+
+            // Prevent switching away from hauler if it would result in zero haulers (when storage exists)
+            if (
+                creep.memory.role === "hauler" &&
+                recommendedRole !== "hauler"
+            ) {
+                const storage = room.find(FIND_STRUCTURES, {
+                    filter: (s) => s.structureType === STRUCTURE_STORAGE,
+                });
+                if (storage.length > 0) {
+                    const haulers =
+                        roleStats && roleStats.hauler ? roleStats.hauler : 0;
+                    const haulersAfterSwitch = haulers - 1; // -1 for this creep switching away
+                    if (haulersAfterSwitch < config.MIN_HAULERS) {
+                        console.log(
+                            `${creep.name}: cannot switch from hauler to ${recommendedRole} (would leave < ${config.MIN_HAULERS} haulers)`,
+                        );
+                        recommendedRole = "hauler";
+                    }
+                }
+            }
+
             // Update role if it changed
             if (creep.memory.role !== recommendedRole) {
                 console.log(
@@ -127,6 +172,7 @@ var roleManager = {
             builder: 0,
             upgrader: 0,
             repairer: 0,
+            hauler: 0,
         };
 
         for (var name in Game.creeps) {
