@@ -21,17 +21,28 @@ module.exports.loop = function () {
     roleManager.manageAllCreeps(Game.spawns["Spawn1"].room);
 
     const roleStats = roleManager.getRoleStats(Game.spawns["Spawn1"].room);
-    console.log(
-        `Active roles - Harvesters: ${roleStats.harvester}, Builders: ${roleStats.builder}, Upgraders: ${roleStats.upgrader}, Repairers: ${roleStats.repairer}`,
-    );
-
+    
     // Calculate ideal creep composition
     const recommendedMinCreeps = creepCalculator.calculateMinCreeps(
         Game.spawns["Spawn1"].room,
     );
+    
+    // Log status every 10 ticks to avoid spam
+    const creepCount = Object.keys(Game.creeps).length;
+    if (Game.time % 10 === 0) {
+        const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;
+        const energyCapacity = Game.spawns["Spawn1"].room.energyCapacityAvailable;
+        const spawningStatus = Game.spawns["Spawn1"].spawning
+            ? `spawning`
+            : creepCount < recommendedMinCreeps
+              ? `waiting (${energyAvailable}/${energyCapacity}E)`
+              : `idle`;
+        console.log(
+            `[Tick ${Game.time}] Creeps: ${creepCount}/${recommendedMinCreeps} (H=${roleStats.harvester} B=${roleStats.builder} U=${roleStats.upgrader} R=${roleStats.repairer}) | Spawner: ${spawningStatus}`,
+        );
+    }
 
     // Spawn new creeps if below minimum
-    const creepCount = Object.keys(Game.creeps).length;
     spawner.run(creepCount, recommendedMinCreeps);
 
     // console.log("Total creeps: " + creepCount);

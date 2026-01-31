@@ -110,13 +110,6 @@ var spawner = {
 
             if (body) {
                 const newName = "Creep" + Game.time;
-                console.log(
-                    "Spawning new creep: " +
-                        newName +
-                        " (criticallyLow=" +
-                        criticallyLow +
-                        ")",
-                );
                 Game.spawns["Spawn1"].spawnCreep(body, newName, {
                     memory: { role: "harvester" },
                 });

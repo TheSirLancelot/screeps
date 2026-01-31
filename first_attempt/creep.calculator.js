@@ -111,10 +111,6 @@ var creepCalculator = {
             repairersNeeded +
             upgradersNeeded;
 
-        console.log(
-            `[CreepCalculator] Sources: ${sources.length}, Storage: ${storage.length}, EnergyDemand: ${totalEnergyDemand.toFixed(1)}/tick, BodyCost: ${estimatedBodyCost}, Harvesters: ${harvestersNeeded}, Builders: ${buildersNeeded}, Repairers: ${repairersNeeded}, Upgraders: ${upgradersNeeded}, Total: ${recommendedTotal}`,
-        );
-
         return recommendedTotal;
     },
 };
