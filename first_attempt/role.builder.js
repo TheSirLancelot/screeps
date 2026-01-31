@@ -1,6 +1,7 @@
 var roleBuilder = {
     /** @param {Creep} creep **/
     run: function (creep) {
+        // TODO: If no construction sites, add fallback work (upgrade controller, repair, or rally).
         if (creep.memory.building && creep.store[RESOURCE_ENERGY] == 0) {
             creep.memory.building = false;
             creep.say("⛏️");
@@ -20,6 +21,7 @@ var roleBuilder = {
                 }
             }
         } else {
+            // TODO: If no energy sources/containers are available, set a fallback behavior.
             var sources = creep.room.find(FIND_SOURCES);
             var stores = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>

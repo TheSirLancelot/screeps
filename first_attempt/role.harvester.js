@@ -22,6 +22,7 @@ var roleHarvester = {
             // find closest source that a path exists to
             var sources = creep.room.find(FIND_SOURCES);
             target = creep.pos.findClosestByPath(sources);
+            // TODO: Prefer non-empty sources and move toward empty ones to pre-position.
             if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
                 creep.moveTo(target, {
                     visualizePathStyle: { stroke: "#ffaa00" },
@@ -125,6 +126,7 @@ var roleHarvester = {
             }
 
             if (targets.length == 0) {
+                // TODO: FIX - controller is not a structure in FIND_STRUCTURES; use room.controller fallback.
                 // take the energy to the controller
                 targets = creep.room.find(FIND_STRUCTURES, {
                     filter: (structure) => {
@@ -132,6 +134,7 @@ var roleHarvester = {
                     },
                 });
             }
+            // TODO: If no transfer targets exist, add fallback (upgrade controller or move to rally).
             while (targets.length > 0 && creep.store[RESOURCE_ENERGY] > 0) {
                 // get closest target to transfer to
                 var target = creep.pos.findClosestByPath(targets);

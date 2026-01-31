@@ -23,6 +23,7 @@ var roleUpgrader = {
                 });
             }
         } else {
+            // TODO: If no energy sources/containers are available, add fallback behavior.
             var sources = creep.room.find(FIND_SOURCES);
             var stores = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>

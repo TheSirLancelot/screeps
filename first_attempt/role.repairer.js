@@ -7,6 +7,7 @@ var roleRepairer = {
         if (creep.store[RESOURCE_ENERGY] == 0) {
             creep.memory.repairing = false;
 
+            // TODO: If no energy sources/containers are available, add fallback behavior.
             var sources = creep.room.find(FIND_SOURCES);
             var stores = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
@@ -41,6 +42,7 @@ var roleRepairer = {
                     structure.hits < structure.hitsMax &&
                     structure.structureType != STRUCTURE_WALL,
             });
+            // TODO: If no repair targets exist, add fallback behavior (upgrade, build, or rally).
             if (targets.length > 0) {
                 // find closest target that a path exists to
                 var target = creep.pos.findClosestByPath(targets);
