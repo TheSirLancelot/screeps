@@ -8,10 +8,10 @@ var config = {
     ROLE_REEVALUATE_INTERVAL: 30,
 
     // Role Manager - minimum number of harvesters to maintain
-    MIN_HARVESTERS: 1,
+    MIN_HARVESTERS: 3,
 
     // Role Manager - minimum number of haulers to maintain (when storage exists)
-    MIN_HAULERS: 1,
+    MIN_HAULERS: 3,
 
     // Spawner - target number of creeps to maintain
     MIN_CREEPS: 10,
