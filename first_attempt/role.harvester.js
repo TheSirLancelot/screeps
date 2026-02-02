@@ -19,14 +19,37 @@ var roleHarvester = {
         }
 
         if (creep.memory.harvesting) {
-            // find closest source that a path exists to
-            var sources = creep.room.find(FIND_SOURCES);
-            target = creep.pos.findClosestByPath(sources);
-            // TODO: Prefer non-empty sources and move toward empty ones to pre-position.
-            if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
-                creep.moveTo(target, {
-                    visualizePathStyle: { stroke: "#ffaa00" },
-                });
+            // Assign a source per creep so they spread out, retarget if empty
+            var allSources = creep.room.find(FIND_SOURCES);
+            var target = creep.memory.sourceId
+                ? Game.getObjectById(creep.memory.sourceId)
+                : null;
+
+            if (!target || target.energy === 0) {
+                var availableSources = allSources.filter(
+                    (source) => source.energy > 0,
+                );
+                var pickFrom =
+                    availableSources.length > 0 ? availableSources : allSources;
+
+                if (pickFrom.length > 0) {
+                    let hash = 0;
+                    for (let i = 0; i < creep.name.length; i += 1) {
+                        hash = (hash * 31 + creep.name.charCodeAt(i)) >>> 0;
+                    }
+                    const index = hash % pickFrom.length;
+                    target = pickFrom[index];
+                    creep.memory.sourceId = target.id;
+                }
+            }
+
+            if (target) {
+                const harvestResult = creep.harvest(target);
+                if (harvestResult == ERR_NOT_IN_RANGE) {
+                    creep.moveTo(target, {
+                        visualizePathStyle: { stroke: "#ffaa00" },
+                    });
+                }
             }
         } else {
             // Deliver energy priority: Containers > Storage > Spawn > Extensions > Tower > Controller
