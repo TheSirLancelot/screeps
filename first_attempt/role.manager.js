@@ -23,15 +23,19 @@ var roleManager = {
      * @param {Room} room - The room context
      */
     evaluateCreep: function (creep, room, roleStats) {
-        // Stagger evaluations based on creep TTL so not all creeps evaluate at once
-        // Evaluate when TTL modulo interval is zero to spread checks naturally
+        // Stagger evaluations based on a per-creep offset so not all creeps evaluate at once
+        // Use Game.time instead of ticksToLive to avoid synchronized spawns switching together
         if (creep.memory.roleCheckOffset === undefined) {
-            creep.memory.roleCheckOffset = Math.floor(
-                Math.random() * config.ROLE_REEVALUATE_INTERVAL,
-            );
+            let hash = 0;
+            for (let i = 0; i < creep.name.length; i += 1) {
+                hash =
+                    (hash * 31 + creep.name.charCodeAt(i)) %
+                    config.ROLE_REEVALUATE_INTERVAL;
+            }
+            creep.memory.roleCheckOffset = hash;
         }
         const shouldReevaluate =
-            (creep.ticksToLive + creep.memory.roleCheckOffset) %
+            (Game.time + creep.memory.roleCheckOffset) %
                 config.ROLE_REEVALUATE_INTERVAL ===
             0;
 
