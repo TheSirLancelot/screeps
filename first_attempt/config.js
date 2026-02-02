@@ -5,22 +5,25 @@
 
 var config = {
     // Role Manager - how often to re-evaluate creep roles (in ticks)
-    ROLE_REEVALUATE_INTERVAL: 30,
+    ROLE_REEVALUATE_INTERVAL: 15,
 
     // Role Manager - minimum number of harvesters to maintain
-    MIN_HARVESTERS: 3,
+    MIN_HARVESTERS: 2,
 
     // Role Manager - maximum number of harvesters to maintain
-    MAX_HARVESTERS: 8,
+    MAX_HARVESTERS: 7,
 
     // Role Manager - minimum number of haulers to maintain (when storage exists)
-    MIN_HAULERS: 3,
+    MIN_HAULERS: 2,
+
+    // Role Manager - minimum number of upgraders to maintain
+    MIN_UPGRADERS: 1,
 
     // Spawner - target number of creeps to maintain
-    MIN_CREEPS: 10,
+    MIN_CREEPS: 5,
 
     // Spawner - population threshold below which to spawn even without full energy
-    CRITICAL_CREEPS: 5,
+    CRITICAL_CREEPS: 3,
 
     // Role Scores - multipliers for scoring different roles
     ROLE_SCORES: {
@@ -29,7 +32,9 @@ var config = {
         REPAIRER_CRITICAL_SCORE: 20, // per critical structure
         HARVESTER_ENERGY_DIVISOR: 100, // total source energy divided by this
         HARVESTER_FALLBACK_SCORE: 5, // when sources empty but storage has energy
-        UPGRADER_PROGRESS_SCORE: 15, // scaled by room controller progress
+        UPGRADER_PROGRESS_SCORE: 30, // scaled by room controller progress (doubled to prioritize upgrading)
+        HAULER_NEED_SCORE: 2, // per energy-needing structure (capped)
+        HAULER_NEED_CAP: 5, // max structures counted toward hauler need
     },
 
     // Creep Utils - how often to check if a road needs building (in ticks)

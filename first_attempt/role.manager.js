@@ -57,9 +57,9 @@ var roleManager = {
                     totalCreeps += 1;
                 }
             }
-            if (totalCreeps < 10 && recommendedRole !== "harvester") {
+            if (totalCreeps < 6 && recommendedRole !== "harvester") {
                 console.log(
-                    `${creep.name}: forcing role to harvester (room population ${totalCreeps} < 10)`,
+                    `${creep.name}: forcing role to harvester (room population ${totalCreeps} < 6)`,
                 );
                 recommendedRole = "harvester";
                 forcedHarvester = true;
@@ -123,6 +123,47 @@ var roleManager = {
                         `${creep.name}: cannot switch from harvester to ${recommendedRole} (would leave 0 harvesters)`,
                     );
                     recommendedRole = "harvester";
+                }
+            }
+
+            // Ensure at least one upgrader to avoid controller downgrade
+            try {
+                if (room.controller) {
+                    const upgraders =
+                        roleStats && roleStats.upgrader
+                            ? roleStats.upgrader
+                            : 0;
+                    if (
+                        upgraders < config.MIN_UPGRADERS &&
+                        recommendedRole !== "upgrader"
+                    ) {
+                        console.log(
+                            `${creep.name}: forcing role to upgrader (upgraders ${upgraders} < ${config.MIN_UPGRADERS})`,
+                        );
+                        recommendedRole = "upgrader";
+                    }
+                }
+            } catch (e) {
+                // If roleStats isn't provided for some reason, skip this check
+            }
+
+            // Prevent switching away from upgrader if it would drop below minimum
+            if (
+                creep.memory.role === "upgrader" &&
+                recommendedRole !== "upgrader"
+            ) {
+                if (room.controller) {
+                    const upgraders =
+                        roleStats && roleStats.upgrader
+                            ? roleStats.upgrader
+                            : 0;
+                    const upgradersAfterSwitch = upgraders - 1;
+                    if (upgradersAfterSwitch < config.MIN_UPGRADERS) {
+                        console.log(
+                            `${creep.name}: cannot switch from upgrader to ${recommendedRole} (would leave < ${config.MIN_UPGRADERS} upgraders)`,
+                        );
+                        recommendedRole = "upgrader";
+                    }
                 }
             }
 

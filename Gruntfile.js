@@ -5,7 +5,7 @@ module.exports = function (grunt) {
         screeps: {
             options: {
                 email: "williamweir10@gmail.com",
-                password: "1qaz@WSX3edc$RFV",
+                password: process.env.SCREEPS_PASSWORD,
                 branch: "first_attempt",
                 server: {
                     host: "screeps.newbieland.net",

@@ -130,8 +130,14 @@ var roleEvaluator = {
                 structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
         });
 
-        // Score based on how many structures need energy
-        score += energyNeedingStructures.length * 5;
+        // Score based on how many structures need energy, but cap it
+        // This prevents haulers from completely dominating all other roles
+        const needScore =
+            Math.min(
+                energyNeedingStructures.length,
+                config.ROLE_SCORES.HAULER_NEED_CAP,
+            ) * config.ROLE_SCORES.HAULER_NEED_SCORE;
+        score += needScore;
 
         return score;
     },

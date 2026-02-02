@@ -47,90 +47,42 @@ var creepCalculator = {
     },
 
     /**
-     * Calculate the minimum number of creeps needed based on energy supply/demand
+     * Calculate the minimum number of creeps needed based on room state
      * @param {Room} room - The room to analyze
      * @returns {number} Recommended minimum creep count
      */
     calculateMinCreeps: function (room) {
-        const CREEP_LIFETIME = 1500; // ticks
-        const ENERGY_PER_WORK_PER_TICK = 1; // 1 energy harvested per WORK per tick
+        var config = require("config");
 
-        // Energy Supply: sources
+        // Start with harvesters - respect config limits
         const sources = room.find(FIND_SOURCES);
-        const totalSourceEnergy = sources.length * ENERGY_PER_WORK_PER_TICK;
+        let totalCreeps = Math.min(sources.length + 1, config.MAX_HARVESTERS);
+        totalCreeps = Math.max(totalCreeps, config.MIN_HARVESTERS);
 
-        // Energy Demand: maintenance
-        const extensions = room.find(FIND_STRUCTURES, {
-            filter: (s) => s.structureType === STRUCTURE_EXTENSION,
-        }).length;
-        const spawns = room.find(FIND_STRUCTURES, {
-            filter: (s) => s.structureType === STRUCTURE_SPAWN,
-        }).length;
-        const towers = room.find(FIND_STRUCTURES, {
-            filter: (s) => s.structureType === STRUCTURE_TOWER,
-        }).length;
+        // Add other roles only if they're truly needed (based on room state)
+        const scores = roleEvaluator.getScores(room);
+
+        if (scores.builder > 0) {
+            totalCreeps += 1;
+        }
+        if (scores.repairer > 0) {
+            totalCreeps += 1;
+        }
+        const upgraderNeed = scores.upgrader > 0 ? 1 : 0;
+        totalCreeps += Math.max(upgraderNeed, config.MIN_UPGRADERS);
+
+        // Add hauler only if storage exists
         const storage = room.find(FIND_STRUCTURES, {
             filter: (s) => s.structureType === STRUCTURE_STORAGE,
         });
-
-        // Maintenance energy demand per tick
-        const extensionCapacity = extensions * 50;
-        const spawnCapacity = spawns * 300;
-        const towerMaintenanceDemand = towers * 5; // rough tower drain per tick
-        const storageMaintenanceDemand = storage.length > 0 ? 2 : 0; // storage fills up slowly
-        const maintenancePerTick =
-            (extensionCapacity + spawnCapacity) * 0.01 +
-            towerMaintenanceDemand +
-            storageMaintenanceDemand;
-
-        // Spawn cost overhead
-        const estimatedBodyCost = this._estimateCreepBodyCost(room);
-        const spawnOverheadPerTick = (estimatedBodyCost / CREEP_LIFETIME) * 10; // 10 creeps to maintain
-
-        // Total energy demand per tick
-        const totalEnergyDemand = maintenancePerTick + spawnOverheadPerTick;
-
-        // Calculate harvesters needed
-        // Account for fact that harvester bodies have CARRY/MOVE parts too
-        // Rough estimate: 2/3 of body is WORK, 1/3 is CARRY/MOVE overhead
-        const workPartRatio = 0.6;
-        const harvestersNeeded = Math.ceil(
-            totalEnergyDemand /
-                (totalSourceEnergy * workPartRatio * ENERGY_PER_WORK_PER_TICK),
-        );
-
-        // Calculate other roles based on room state scores
-        const scores = roleEvaluator.getScores(room);
-        let buildersNeeded = scores.builder > 0 ? 1 : 0;
-        let repairersNeeded = scores.repairer > 0 ? 1 : 0;
-        let upgradersNeeded = scores.upgrader > 0 ? 1 : 0;
-
-        // Calculate haulers needed (only if storage exists)
-        let haulersNeeded = 0;
         if (storage.length > 0) {
-            // Haulers distribute energy from storage to various structures
-            // Estimate: need roughly 1 hauler per energy demand destination
-            const energyNeedingStructures = room.find(FIND_STRUCTURES, {
-                filter: (structure) =>
-                    (structure.structureType === STRUCTURE_SPAWN ||
-                        structure.structureType === STRUCTURE_EXTENSION ||
-                        structure.structureType === STRUCTURE_TOWER ||
-                        structure.structureType === STRUCTURE_CONTAINER) &&
-                    structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-            }).length;
-            // Rough heuristic: 1 hauler per 3 energy-needing structures
-            haulersNeeded = Math.ceil(energyNeedingStructures / 3);
-            haulersNeeded = Math.max(haulersNeeded, 1); // At least 1 if storage exists
+            totalCreeps += config.MIN_HAULERS;
         }
 
-        const recommendedTotal =
-            harvestersNeeded +
-            buildersNeeded +
-            repairersNeeded +
-            upgradersNeeded +
-            haulersNeeded;
+        // Ensure we're always recommending at least MIN_CREEPS + buffer for wiggle room
+        totalCreeps = Math.max(totalCreeps, config.MIN_CREEPS + 2);
 
-        return recommendedTotal;
+        return totalCreeps;
     },
 };
 
