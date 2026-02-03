@@ -27,7 +27,7 @@ var config = {
 
     // Role Scores - multipliers for scoring different roles
     ROLE_SCORES: {
-        BUILDER_SITE_SCORE: 10, // per construction site
+        BUILDER_SITE_SCORE: 50, // per construction site
         REPAIRER_DAMAGE_SCORE: 8, // per damaged structure
         REPAIRER_CRITICAL_SCORE: 20, // per critical structure
         HARVESTER_ENERGY_DIVISOR: 100, // total source energy divided by this

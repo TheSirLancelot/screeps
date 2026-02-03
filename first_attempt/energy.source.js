@@ -82,16 +82,25 @@ var energySource = {
             }
         }
 
-        // Priority 3: Sources (fallback if no storage/containers)
-        var sources = creep.room.find(FIND_SOURCES, {
-            filter: (source) => source.energy > 0,
-        });
+        // Priority 3: Sources (only if no containers exist anywhere in the room)
+        // Otherwise wait for containers to be filled
+        // TODO: Add emergency fallback - if creep energy < 50 or all containers empty, allow source harvesting
+        const containerCount = creep.room.find(FIND_STRUCTURES, {
+            filter: (s) => s.structureType === STRUCTURE_CONTAINER,
+        }).length;
 
-        if (sources.length > 0) {
-            target = creep.pos.findClosestByPath(sources);
-            if (target) {
-                creep.memory.energySourceId = target.id;
-                return target;
+        if (containerCount === 0) {
+            // No containers exist, use sources as fallback
+            var sources = creep.room.find(FIND_SOURCES, {
+                filter: (source) => source.energy > 0,
+            });
+
+            if (sources.length > 0) {
+                target = creep.pos.findClosestByPath(sources);
+                if (target) {
+                    creep.memory.energySourceId = target.id;
+                    return target;
+                }
             }
         }
 

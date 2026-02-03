@@ -1,6 +1,14 @@
 var roleHauler = {
     /** @param {Creep} creep **/
     run: function (creep) {
+        // Remote hauler logic: navigate between home room and target room
+        const targetRoom = creep.memory.targetRoom;
+        const homeRoom = creep.memory.homeRoom || creep.room.name;
+
+        if (!creep.memory.homeRoom) {
+            creep.memory.homeRoom = creep.room.name;
+        }
+
         // track previous state to avoid spamming say
         const prevHauling = creep.memory.hauling;
         if (creep.memory.hauling === undefined) {
@@ -16,6 +24,25 @@ var roleHauler = {
         // Announce when switching into hauling
         if (creep.memory.hauling === true && prevHauling !== true) {
             creep.say("📦");
+        }
+
+        // Remote hauler: if hauling (empty), go to target room; if delivering (full), go to home room
+        if (targetRoom) {
+            if (creep.memory.hauling && creep.room.name !== targetRoom) {
+                const targetPos = new RoomPosition(25, 25, targetRoom);
+                creep.moveTo(targetPos, {
+                    visualizePathStyle: { stroke: "#ffaa00" },
+                    reusePath: 50,
+                });
+                return;
+            } else if (!creep.memory.hauling && creep.room.name !== homeRoom) {
+                const homePos = new RoomPosition(25, 25, homeRoom);
+                creep.moveTo(homePos, {
+                    visualizePathStyle: { stroke: "#ffffff" },
+                    reusePath: 50,
+                });
+                return;
+            }
         }
 
         if (creep.memory.hauling) {
@@ -38,108 +65,82 @@ var roleHauler = {
                 target = creep.pos.findClosestByPath(tombstones);
             }
 
-            // If no tombstone, use assigned container (stay until hauler is full)
+            // If no tombstone, find any available container with energy and active miner
             if (!target) {
-                // Only dedicated haulers can keep container assignments
-                if (!isDedicatedHauler && creep.memory.assignedContainerId) {
-                    delete creep.memory.assignedContainerId;
-                }
+                // Get all dedicated haulers and their assignments
+                const dedicatedHaulers = creep.room.find(FIND_MY_CREEPS, {
+                    filter: (c) =>
+                        c.memory.role === "hauler" &&
+                        c.memory.fixedRole === true &&
+                        c.memory.assignedContainerId,
+                });
+                const assignedContainerIds = dedicatedHaulers.map(
+                    (h) => h.memory.assignedContainerId,
+                );
 
-                // Validate existing assignment (dedicated only)
-                if (isDedicatedHauler && creep.memory.assignedContainerId) {
-                    const assignedContainer = Game.getObjectById(
-                        creep.memory.assignedContainerId,
-                    );
+                // Find containers with active miners (any of them, don't restrict to assignment)
+                var containers = creep.room.find(FIND_STRUCTURES, {
+                    filter: (structure) => {
+                        if (structure.structureType !== STRUCTURE_CONTAINER)
+                            return false;
+                        if (structure.store[RESOURCE_ENERGY] === 0)
+                            return false;
 
-                    // Check if container still exists and has active miner nearby
-                    if (assignedContainer) {
-                        const minersNearby = assignedContainer.pos.findInRange(
+                        // Check for miner nearby
+                        const minersNearby = structure.pos.findInRange(
                             FIND_MY_CREEPS,
                             1,
                             { filter: (c) => c.memory.role === "miner" },
                         );
+                        return minersNearby.length > 0;
+                    },
+                });
 
-                        // Stay assigned if miner is present, even if container is low/empty
-                        if (
-                            minersNearby.length > 0 &&
-                            assignedContainer.store[RESOURCE_ENERGY] > 0
-                        ) {
-                            target = assignedContainer;
-                        } else if (minersNearby.length === 0) {
-                            // No miner, clear assignment
-                            delete creep.memory.assignedContainerId;
-                        }
-                    } else {
-                        // Container gone, clear assignment
-                        delete creep.memory.assignedContainerId;
+                if (containers.length > 0) {
+                    // Non-dedicated haulers must avoid dedicated assignments
+                    const availableContainers = containers.filter(
+                        (c) => !assignedContainerIds.includes(c.id),
+                    );
+
+                    if (availableContainers.length > 0) {
+                        // Pick the fullest available container
+                        target = availableContainers.reduce(
+                            (fullest, container) => {
+                                return container.store[RESOURCE_ENERGY] >
+                                    fullest.store[RESOURCE_ENERGY]
+                                    ? container
+                                    : fullest;
+                            },
+                        );
+                    } else if (isDedicatedHauler && containers.length > 0) {
+                        // Dedicated haulers can work on their own assigned containers
+                        target = containers.reduce((fullest, container) => {
+                            return container.store[RESOURCE_ENERGY] >
+                                fullest.store[RESOURCE_ENERGY]
+                                ? container
+                                : fullest;
+                        });
+                    }
+
+                    // Update assignment if picked a different container
+                    if (
+                        target &&
+                        isDedicatedHauler &&
+                        target.id !== creep.memory.assignedContainerId
+                    ) {
+                        creep.memory.assignedContainerId = target.id;
                     }
                 }
 
-                // If no valid assignment, find a new container to assign to
-                if (!target && !creep.memory.assignedContainerId) {
-                    // Get all dedicated haulers and their assignments
-                    const dedicatedHaulers = creep.room.find(FIND_MY_CREEPS, {
-                        filter: (c) =>
-                            c.memory.role === "hauler" &&
-                            c.memory.fixedRole === true &&
-                            c.memory.assignedContainerId,
+                if (!target) {
+                    // No containers with miners, try storage
+                    var storage = creep.room.find(FIND_STRUCTURES, {
+                        filter: (structure) =>
+                            structure.structureType === STRUCTURE_STORAGE &&
+                            structure.store[RESOURCE_ENERGY] > 0,
                     });
-                    const assignedContainerIds = dedicatedHaulers.map(
-                        (h) => h.memory.assignedContainerId,
-                    );
-
-                    // Find containers with active miners
-                    var containers = creep.room.find(FIND_STRUCTURES, {
-                        filter: (structure) => {
-                            if (structure.structureType !== STRUCTURE_CONTAINER)
-                                return false;
-                            if (structure.store[RESOURCE_ENERGY] === 0)
-                                return false;
-
-                            // Check for miner nearby
-                            const minersNearby = structure.pos.findInRange(
-                                FIND_MY_CREEPS,
-                                1,
-                                { filter: (c) => c.memory.role === "miner" },
-                            );
-                            return minersNearby.length > 0;
-                        },
-                    });
-
-                    if (containers.length > 0) {
-                        // Non-dedicated haulers must avoid dedicated assignments
-                        const availableContainers = containers.filter(
-                            (c) => !assignedContainerIds.includes(c.id),
-                        );
-
-                        if (availableContainers.length > 0) {
-                            // Pick the fullest available container
-                            target = availableContainers.reduce(
-                                (fullest, container) => {
-                                    return container.store[RESOURCE_ENERGY] >
-                                        fullest.store[RESOURCE_ENERGY]
-                                        ? container
-                                        : fullest;
-                                },
-                            );
-
-                            // Only dedicated haulers take ownership
-                            if (target && isDedicatedHauler) {
-                                creep.memory.assignedContainerId = target.id;
-                            }
-                        }
-                    }
-
-                    if (!target) {
-                        // No containers with miners, try storage
-                        var storage = creep.room.find(FIND_STRUCTURES, {
-                            filter: (structure) =>
-                                structure.structureType === STRUCTURE_STORAGE &&
-                                structure.store[RESOURCE_ENERGY] > 0,
-                        });
-                        if (storage.length > 0) {
-                            target = storage[0];
-                        }
+                    if (storage.length > 0) {
+                        target = storage[0];
                     }
                 }
             }
@@ -161,6 +162,11 @@ var roleHauler = {
 
                     if (!hasEnergyDemand) {
                         if (creep.memory.fixedRole !== true) {
+                            if (Game.time % 50 === 0) {
+                                console.log(
+                                    `${creep.name} switching to upgrader (no hauler demand)`,
+                                );
+                            }
                             creep.memory.role = "upgrader";
                         }
                         return;

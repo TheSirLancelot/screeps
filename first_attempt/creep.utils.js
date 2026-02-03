@@ -62,6 +62,13 @@ var creepUtils = {
      * @param {RoomTerrain} terrain - Room terrain object (pre-fetched for efficiency)
      */
     maintain: function (creep, terrain) {
+        if (
+            creep.memory.role === "reserver" ||
+            creep.memory.role === "remote_builder" ||
+            (creep.memory.role === "miner" && creep.memory.targetRoom)
+        ) {
+            return;
+        }
         this.buildRoadIfNeeded(creep, terrain);
     },
 };

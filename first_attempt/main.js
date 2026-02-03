@@ -3,11 +3,14 @@ var roleBuilder = require("role.builder");
 var roleRepairer = require("role.repairer");
 var roleHauler = require("role.hauler");
 var roleMiner = require("role.miner");
+var roleReserver = require("role.reserver");
+var roleRemoteBuilder = require("role.remote_builder");
 var spawner = require("spawner");
 var roleManager = require("role.manager");
 var creepUtils = require("creep.utils");
 var towerManager = require("tower.manager");
 var creepCalculator = require("creep.calculator");
+var config = require("config");
 
 var roleHandlers = {
     miner: roleMiner,
@@ -15,6 +18,8 @@ var roleHandlers = {
     builder: roleBuilder,
     repairer: roleRepairer,
     hauler: roleHauler,
+    reserver: roleReserver,
+    remote_builder: roleRemoteBuilder,
 };
 
 module.exports.loop = function () {
@@ -80,8 +85,8 @@ module.exports.loop = function () {
             activeSpawn = Game.getObjectById(cachedSpawnIds[0]);
         }
 
-        // Log status every 10 ticks to avoid spam
-        if (Game.time % 10 === 0) {
+        // Log status only when at or below critical creep threshold
+        if (creepCount <= config.CRITICAL_CREEPS && Game.time % 10 === 0) {
             const energyAvailable = room.energyAvailable;
             const energyCapacity = room.energyCapacityAvailable;
             const spawningStatus =
@@ -89,9 +94,7 @@ module.exports.loop = function () {
                     ? "spawning"
                     : !activeSpawn
                       ? "no spawn"
-                      : creepCount < recommendedMinCreeps
-                        ? `waiting (${energyAvailable}/${energyCapacity}E)`
-                        : "idle";
+                      : `waiting (${energyAvailable}/${energyCapacity}E)`;
             console.log(
                 `[Tick ${Game.time}] Room ${room.name} | Creeps: ${creepCount}/${recommendedMinCreeps} (M=${roleStats.miner} Ha=${roleStats.hauler} B=${roleStats.builder} U=${roleStats.upgrader} R=${roleStats.repairer}) | Spawner: ${spawningStatus}`,
             );
@@ -107,6 +110,336 @@ module.exports.loop = function () {
                 activeSpawn.pos.y,
                 { align: "left", opacity: 0.8 },
             );
+        }
+    }
+
+    // Check remote room reservations and spawn reservers if needed
+    Memory.remoteRooms = Memory.remoteRooms || [];
+    for (const remoteRoomName of Memory.remoteRooms) {
+        // Only calculate path if not already calculated
+        Memory.remotePaths = Memory.remotePaths || {};
+        if (!Memory.remotePaths[remoteRoomName]) {
+            Memory.remotePaths[remoteRoomName] = {
+                calculatedAt: Game.time,
+                travelTime: null, // Will be filled by first reserver
+            };
+        }
+
+        // Check if reserver already exists for this room
+        const existingReserver = Object.values(Game.creeps).find(
+            (c) =>
+                c.memory.role === "reserver" &&
+                c.memory.targetRoom === remoteRoomName,
+        );
+
+        // Check if room has vision
+        const remoteRoom = Game.rooms[remoteRoomName];
+        if (remoteRoom && remoteRoom.controller) {
+            const controller = remoteRoom.controller;
+            const reservation = controller.reservation;
+            const existingRemoteBuilders = Object.values(Game.creeps).filter(
+                (c) =>
+                    c.memory.role === "remote_builder" &&
+                    c.memory.targetRoom === remoteRoomName,
+            );
+            const remoteSites = remoteRoom.find(FIND_CONSTRUCTION_SITES);
+            const remoteSources = remoteRoom.find(FIND_SOURCES);
+
+            // Determine if we need a reserver
+            let needsReserver = false;
+            if (!reservation || reservation.username !== "TheSirLancelot") {
+                needsReserver = true;
+            } else {
+                // Check if reservation is low
+                const travelTime =
+                    Memory.remotePaths[remoteRoomName].travelTime || 100;
+                const bufferTime = 500;
+                const spawnThreshold = travelTime * 2 + bufferTime;
+
+                if (reservation.ticksToEnd < spawnThreshold) {
+                    needsReserver = true;
+                }
+            }
+
+            if (needsReserver && !existingReserver) {
+                console.log(
+                    `Remote room ${remoteRoomName} needs reserver (reservation: ${reservation ? reservation.ticksToEnd : 0})`,
+                );
+
+                const spawn = Object.values(Game.spawns).find(
+                    (s) => !s.spawning,
+                );
+                const reserverBody = [CLAIM, CLAIM, MOVE, MOVE];
+                const reserverCost = 1300;
+
+                if (spawn && spawn.room.energyAvailable >= reserverCost) {
+                    const name = `Reserver_${remoteRoomName}_${Game.time}`;
+                    const result = spawn.spawnCreep(reserverBody, name, {
+                        memory: {
+                            role: "reserver",
+                            targetRoom: remoteRoomName,
+                            fixedRole: true,
+                        },
+                    });
+                    if (result === OK) {
+                        console.log(
+                            `Spawning reserver ${name} for ${remoteRoomName}`,
+                        );
+                    }
+                }
+            }
+
+            if (remoteSites.length > 0) {
+                const spawn = Object.values(Game.spawns).find(
+                    (s) => !s.spawning,
+                );
+                const builderBody = [
+                    WORK,
+                    WORK,
+                    WORK,
+                    WORK,
+                    CARRY,
+                    CARRY,
+                    CARRY,
+                    CARRY,
+                    MOVE,
+                    MOVE,
+                    MOVE,
+                    MOVE,
+                    MOVE,
+                    MOVE,
+                    MOVE,
+                    MOVE,
+                ];
+                const builderCost = 1200;
+
+                if (
+                    spawn &&
+                    spawn.room.energyAvailable >= builderCost &&
+                    existingRemoteBuilders.length < remoteSources.length
+                ) {
+                    const assignedSourceIds = existingRemoteBuilders
+                        .map((c) => c.memory.assignedSourceId)
+                        .filter(Boolean);
+                    const availableSource = remoteSources.find(
+                        (source) => !assignedSourceIds.includes(source.id),
+                    );
+                    const name = `RemoteBuilder_${remoteRoomName}_${Game.time}`;
+                    const result = spawn.spawnCreep(builderBody, name, {
+                        memory: {
+                            role: "remote_builder",
+                            targetRoom: remoteRoomName,
+                            fixedRole: true,
+                            assignedSourceId: availableSource
+                                ? availableSource.id
+                                : null,
+                        },
+                    });
+                    if (result === OK) {
+                        console.log(
+                            `Spawning remote builder ${name} for ${remoteRoomName}`,
+                        );
+                    }
+                }
+            }
+
+            // Check for containers and spawn remote miners
+            const existingRemoteMiners = Object.values(Game.creeps).filter(
+                (c) =>
+                    c.memory.role === "miner" &&
+                    c.memory.targetRoom === remoteRoomName,
+            );
+
+            for (const source of remoteSources) {
+                const nearbyContainers = source.pos.findInRange(
+                    FIND_STRUCTURES,
+                    1,
+                    {
+                        filter: (s) => s.structureType === STRUCTURE_CONTAINER,
+                    },
+                );
+
+                if (nearbyContainers.length > 0) {
+                    const assignedMiner = existingRemoteMiners.find(
+                        (c) => c.memory.assignedSourceId === source.id,
+                    );
+
+                    if (!assignedMiner) {
+                        const spawn = Object.values(Game.spawns).find(
+                            (s) => !s.spawning,
+                        );
+                        const minerBody = [
+                            WORK,
+                            WORK,
+                            WORK,
+                            WORK,
+                            WORK,
+                            CARRY,
+                            MOVE,
+                        ];
+                        const minerCost = 350;
+
+                        if (spawn && spawn.room.energyAvailable >= minerCost) {
+                            const name = `RemoteMiner_${remoteRoomName}_${Game.time}`;
+                            const result = spawn.spawnCreep(minerBody, name, {
+                                memory: {
+                                    role: "miner",
+                                    targetRoom: remoteRoomName,
+                                    assignedSourceId: source.id,
+                                    fixedRole: true,
+                                },
+                            });
+                            if (result === OK) {
+                                if (Game.time % 50 === 0) {
+                                    console.log(
+                                        `Spawning remote miner ${name} for ${remoteRoomName} source ${source.id}`,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check if roads are mostly built and spawn remote haulers
+            // Only spawn haulers after roads are done so they don't compete with builders for energy
+            const roadSites = remoteRoom
+                .find(FIND_CONSTRUCTION_SITES)
+                .filter((s) => s.structureType === STRUCTURE_ROAD);
+
+            if (roadSites.length === 0) {
+                // All roads built, check if we need haulers
+                const existingRemoteHaulers = Object.values(Game.creeps).filter(
+                    (c) =>
+                        c.memory.role === "hauler" &&
+                        c.memory.targetRoom === remoteRoomName &&
+                        c.memory.fixedRole === true,
+                );
+
+                // Spawn one hauler per source with a container
+                for (const source of remoteSources) {
+                    const nearbyContainers = source.pos.findInRange(
+                        FIND_STRUCTURES,
+                        1,
+                        {
+                            filter: (s) =>
+                                s.structureType === STRUCTURE_CONTAINER,
+                        },
+                    );
+
+                    if (nearbyContainers.length > 0) {
+                        const container = nearbyContainers[0];
+                        const assignedHauler = existingRemoteHaulers.find(
+                            (c) =>
+                                c.memory.assignedContainerId === container.id,
+                        );
+
+                        if (!assignedHauler) {
+                            const spawn = Object.values(Game.spawns).find(
+                                (s) => !s.spawning,
+                            );
+                            const haulerBody = [
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                CARRY,
+                                MOVE,
+                                MOVE,
+                                MOVE,
+                                MOVE,
+                                MOVE,
+                                MOVE,
+                                MOVE,
+                                MOVE,
+                            ];
+                            const haulerCost = 1000;
+
+                            if (
+                                spawn &&
+                                spawn.room.energyAvailable >= haulerCost
+                            ) {
+                                const name = `RemoteHauler_${remoteRoomName}_${Game.time}`;
+                                const result = spawn.spawnCreep(
+                                    haulerBody,
+                                    name,
+                                    {
+                                        memory: {
+                                            role: "hauler",
+                                            targetRoom: remoteRoomName,
+                                            assignedContainerId: container.id,
+                                            fixedRole: true,
+                                        },
+                                    },
+                                );
+                                if (result === OK) {
+                                    if (Game.time % 50 === 0) {
+                                        console.log(
+                                            `Spawning remote hauler ${name} for ${remoteRoomName} container ${container.id}`,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (!existingReserver) {
+            // No vision - use a simple timer to keep reservers rolling
+            const remotePathData = Memory.remotePaths[remoteRoomName];
+            if (!remotePathData.nextReserverTick) {
+                remotePathData.nextReserverTick = Game.time;
+            }
+
+            if (Game.time >= remotePathData.nextReserverTick) {
+                const spawn = Object.values(Game.spawns).find(
+                    (s) => !s.spawning,
+                );
+                const reserverBody = [CLAIM, CLAIM, MOVE, MOVE];
+                const reserverCost = 1300;
+
+                if (spawn && spawn.room.energyAvailable >= reserverCost) {
+                    const name = `Reserver_${remoteRoomName}_${Game.time}`;
+                    const result = spawn.spawnCreep(reserverBody, name, {
+                        memory: {
+                            role: "reserver",
+                            targetRoom: remoteRoomName,
+                            fixedRole: true,
+                        },
+                    });
+                    if (result === OK) {
+                        console.log(
+                            `Spawning reserver ${name} for ${remoteRoomName} (no vision)`,
+                        );
+                        // Schedule next refresh before reservation expires
+                        const travelTime = remotePathData.travelTime || 100;
+                        const bufferTime = 500;
+                        const refreshInterval = Math.max(
+                            500,
+                            5000 - (travelTime * 2 + bufferTime),
+                        );
+                        remotePathData.nextReserverTick =
+                            Game.time + refreshInterval;
+                    }
+                }
+            }
+
+            if (Game.time % 10 === 0) {
+                console.log(
+                    `Remote room ${remoteRoomName} has no vision - using timer-based reserver spawns`,
+                );
+            }
         }
     }
 
