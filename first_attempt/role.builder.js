@@ -1,3 +1,5 @@
+var energySource = require("energy.source");
+
 var roleBuilder = {
     /** @param {Creep} creep **/
     run: function (creep) {
@@ -25,46 +27,10 @@ var roleBuilder = {
                 }
             }
         } else {
-            // Get energy from storage first, then containers, then sources
-            var storage = creep.room.find(FIND_STRUCTURES, {
-                filter: (structure) =>
-                    structure.structureType == STRUCTURE_STORAGE &&
-                    structure.store[RESOURCE_ENERGY] > 0,
-            });
-
-            var containers = creep.room.find(FIND_STRUCTURES, {
-                filter: (structure) =>
-                    structure.structureType == STRUCTURE_CONTAINER &&
-                    structure.store[RESOURCE_ENERGY] > 0,
-            });
-
-            var target = null;
-            if (storage.length > 0) {
-                target = creep.pos.findClosestByPath(storage);
-            } else if (containers.length > 0) {
-                target = creep.pos.findClosestByPath(containers);
-            }
-
+            // Use committed energy source to prevent thrashing
+            const target = energySource.findCommittedSource(creep);
             if (target) {
-                var result = creep.withdraw(target, RESOURCE_ENERGY);
-                if (result == ERR_NOT_IN_RANGE) {
-                    creep.moveTo(target, {
-                        visualizePathStyle: { stroke: "#ffaa00" },
-                        reusePath: 20,
-                    });
-                }
-            } else {
-                // If no storage/containers with energy, harvest from source
-                var sources = creep.room.find(FIND_SOURCES);
-                target = creep.pos.findClosestByPath(sources);
-                if (target) {
-                    if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
-                        creep.moveTo(target, {
-                            visualizePathStyle: { stroke: "#ffaa00" },
-                            reusePath: 20,
-                        });
-                    }
-                }
+                energySource.collectFrom(creep, target);
             }
         }
     },

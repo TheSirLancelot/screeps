@@ -17,7 +17,7 @@ var config = {
     MIN_HAULERS: 2,
 
     // Role Manager - minimum number of upgraders to maintain
-    MIN_UPGRADERS: 3,
+    MIN_UPGRADERS: 1,
 
     // Spawner - target number of creeps to maintain
     MIN_CREEPS: 6,
