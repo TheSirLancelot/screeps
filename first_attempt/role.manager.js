@@ -23,6 +23,10 @@ var roleManager = {
      * @param {Room} room - The room context
      */
     evaluateCreep: function (creep, room, roleStats) {
+        // Dedicated roles (e.g., miners) should not be re-evaluated
+        if (creep.memory.fixedRole === true || creep.memory.role === "miner") {
+            return;
+        }
         // Stagger evaluations based on a per-creep offset so not all creeps evaluate at once
         // Use Game.time instead of ticksToLive to avoid synchronized spawns switching together
         if (creep.memory.roleCheckOffset === undefined) {
@@ -43,17 +47,17 @@ var roleManager = {
             let recommendedRole = roleEvaluator.evaluateRole(room, creep);
             let forcedHarvester = false;
 
-            // EMERGENCY: If hostiles in room, everyone becomes harvester to keep towers full
+            // EMERGENCY: If hostiles in room, everyone becomes hauler to keep towers full
             const hostiles = room.find(FIND_HOSTILE_CREEPS);
-            if (hostiles.length > 0 && recommendedRole !== "harvester") {
+            if (hostiles.length > 0 && recommendedRole !== "hauler") {
                 console.log(
-                    `${creep.name}: EMERGENCY - forcing role to harvester (${hostiles.length} hostiles in room)`,
+                    `${creep.name}: EMERGENCY - forcing role to hauler (${hostiles.length} hostiles in room)`,
                 );
-                recommendedRole = "harvester";
+                recommendedRole = "hauler";
                 forcedHarvester = true;
             }
 
-            // If population in this room is low, force harvesters to prioritize energy
+            // If population in this room is low, force haulers to prioritize energy
             let totalCreeps = 0;
             for (const cname in Game.creeps) {
                 const c = Game.creeps[cname];
@@ -61,73 +65,31 @@ var roleManager = {
                     totalCreeps += 1;
                 }
             }
-            if (totalCreeps < 6 && recommendedRole !== "harvester") {
+            if (totalCreeps < 6 && recommendedRole !== "hauler") {
                 console.log(
-                    `${creep.name}: forcing role to harvester (room population ${totalCreeps} < 6)`,
+                    `${creep.name}: forcing role to hauler (room population ${totalCreeps} < 6)`,
                 );
-                recommendedRole = "harvester";
+                recommendedRole = "hauler";
                 forcedHarvester = true;
             }
 
-            // If there are currently no harvesters (or very few), prioritize creating at least one
-            // This prevents situations where all creeps are non-harvesters (e.g. all builders)
+            // If there are currently no haulers (or very few), prioritize creating at least one
+            // This prevents situations where all creeps are non-haulers
             try {
-                const harvesters =
-                    roleStats && roleStats.harvester ? roleStats.harvester : 0;
+                const haulers =
+                    roleStats && roleStats.hauler ? roleStats.hauler : 0;
                 if (
-                    harvesters < config.MIN_HARVESTERS &&
-                    recommendedRole !== "harvester"
+                    haulers < config.MIN_HAULERS &&
+                    recommendedRole !== "hauler"
                 ) {
                     console.log(
-                        `${creep.name}: forcing role to harvester (harvesters ${harvesters} < ${config.MIN_HARVESTERS})`,
+                        `${creep.name}: forcing role to hauler (haulers ${haulers} < ${config.MIN_HAULERS})`,
                     );
-                    recommendedRole = "harvester";
+                    recommendedRole = "hauler";
                     forcedHarvester = true;
                 }
             } catch (e) {
                 // If roleStats isn't provided for some reason, skip this check
-            }
-
-            // If at/over max harvesters, avoid assigning more harvesters unless forced
-            if (!forcedHarvester && recommendedRole === "harvester") {
-                const harvesters =
-                    roleStats && roleStats.harvester ? roleStats.harvester : 0;
-                if (harvesters >= config.MAX_HARVESTERS) {
-                    const scores = roleEvaluator.getScores(room);
-                    let bestRole = null;
-                    let bestScore = -1;
-                    for (const role in scores) {
-                        if (role === "harvester") {
-                            continue;
-                        }
-                        if (scores[role] > bestScore) {
-                            bestScore = scores[role];
-                            bestRole = role;
-                        }
-                    }
-                    if (bestRole) {
-                        console.log(
-                            `${creep.name}: avoiding harvester (harvesters ${harvesters} >= ${config.MAX_HARVESTERS}); choosing ${bestRole}`,
-                        );
-                        recommendedRole = bestRole;
-                    }
-                }
-            }
-
-            // Prevent switching away from harvester if it would result in zero harvesters
-            if (
-                creep.memory.role === "harvester" &&
-                recommendedRole !== "harvester"
-            ) {
-                const harvesters =
-                    roleStats && roleStats.harvester ? roleStats.harvester : 0;
-                const harvestersAfterSwitch = harvesters - 1; // -1 for this creep switching away
-                if (harvestersAfterSwitch === 0) {
-                    console.log(
-                        `${creep.name}: cannot switch from harvester to ${recommendedRole} (would leave 0 harvesters)`,
-                    );
-                    recommendedRole = "harvester";
-                }
             }
 
             // Ensure at least one upgrader to avoid controller downgrade
@@ -250,11 +212,11 @@ var roleManager = {
      */
     getRoleStats: function (room) {
         const stats = {
-            harvester: 0,
+            miner: 0,
+            hauler: 0,
             builder: 0,
             upgrader: 0,
             repairer: 0,
-            hauler: 0,
         };
 
         for (var name in Game.creeps) {

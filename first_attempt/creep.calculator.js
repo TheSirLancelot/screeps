@@ -54,10 +54,9 @@ var creepCalculator = {
     calculateMinCreeps: function (room) {
         var config = require("config");
 
-        // Start with harvesters - respect config limits
+        // Start with dedicated miners: 1 per source
         const sources = room.find(FIND_SOURCES);
-        let totalCreeps = Math.min(sources.length + 1, config.MAX_HARVESTERS);
-        totalCreeps = Math.max(totalCreeps, config.MIN_HARVESTERS);
+        let totalCreeps = sources.length;
 
         // Add other roles only if they're truly needed (based on room state)
         const scores = roleEvaluator.getScores(room);
@@ -83,6 +82,33 @@ var creepCalculator = {
         totalCreeps = Math.max(totalCreeps, config.MIN_CREEPS + 2);
 
         return totalCreeps;
+    },
+
+    /**
+     * Calculate required miners to drain sources within a target number of ticks
+     * @param {Room} room - The room to analyze
+     * @param {number} targetTicks - Desired drain time (default 300)
+     * @param {number} minerWorkParts - WORK parts per miner body
+     * @returns {{total:number, perSource:number[], workPerSource:number}}
+     */
+    calculateRequiredMiners: function (
+        room,
+        targetTicks = 300,
+        minerWorkParts = 5,
+    ) {
+        const sources = room.find(FIND_SOURCES);
+        const workPerSource = sources.map((source) => {
+            const capacity = source.energyCapacity || 3000;
+            const energyPerTick = capacity / targetTicks;
+            return Math.ceil(energyPerTick / HARVEST_POWER);
+        });
+
+        const perSource = workPerSource.map((requiredWork) =>
+            Math.max(1, Math.ceil(requiredWork / minerWorkParts)),
+        );
+
+        const total = perSource.reduce((sum, count) => sum + count, 0);
+        return { total, perSource, workPerSource };
     },
 };
 

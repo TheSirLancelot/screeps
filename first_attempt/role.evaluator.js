@@ -169,11 +169,10 @@ var roleEvaluator = {
      */
     evaluateRole: function (room, creep) {
         const scores = {
-            harvester: this._scoreHarvester(room),
+            hauler: this._scoreHauler(room),
             builder: this._scoreBuilder(room),
             upgrader: this._scoreUpgrader(room),
             repairer: this._scoreRepairer(room),
-            hauler: this._scoreHauler(room),
         };
 
         return this._selectHighestScoredRole(scores);
@@ -186,11 +185,10 @@ var roleEvaluator = {
      */
     getScores: function (room) {
         return {
-            harvester: this._scoreHarvester(room),
+            hauler: this._scoreHauler(room),
             builder: this._scoreBuilder(room),
             upgrader: this._scoreUpgrader(room),
             repairer: this._scoreRepairer(room),
-            hauler: this._scoreHauler(room),
         };
     },
 };
