@@ -19,38 +19,51 @@ var roleBuilder = {
                     if (creep.build(target) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffffff" },
+                            reusePath: 5,
                         });
                     }
                 }
             }
         } else {
-            // Get energy from storage/containers, or harvest from sources if none available
-            var stores = creep.room.find(FIND_STRUCTURES, {
+            // Get energy from storage first, then containers, then sources
+            var storage = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
-                    (structure.structureType == STRUCTURE_STORAGE ||
-                        structure.structureType == STRUCTURE_CONTAINER) &&
+                    structure.structureType == STRUCTURE_STORAGE &&
                     structure.store[RESOURCE_ENERGY] > 0,
             });
 
-            var target = creep.pos.findClosestByPath(stores);
+            var containers = creep.room.find(FIND_STRUCTURES, {
+                filter: (structure) =>
+                    structure.structureType == STRUCTURE_CONTAINER &&
+                    structure.store[RESOURCE_ENERGY] > 0,
+            });
 
-            // If no storage/containers with energy, harvest from source
-            if (!target) {
+            var target = null;
+            if (storage.length > 0) {
+                target = creep.pos.findClosestByPath(storage);
+            } else if (containers.length > 0) {
+                target = creep.pos.findClosestByPath(containers);
+            }
+
+            if (target) {
+                var result = creep.withdraw(target, RESOURCE_ENERGY);
+                if (result == ERR_NOT_IN_RANGE) {
+                    creep.moveTo(target, {
+                        visualizePathStyle: { stroke: "#ffaa00" },
+                        reusePath: 5,
+                    });
+                }
+            } else {
+                // If no storage/containers with energy, harvest from source
                 var sources = creep.room.find(FIND_SOURCES);
                 target = creep.pos.findClosestByPath(sources);
                 if (target) {
                     if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffaa00" },
+                            reusePath: 5,
                         });
                     }
-                }
-            } else {
-                var result = creep.withdraw(target, RESOURCE_ENERGY);
-                if (result == ERR_NOT_IN_RANGE) {
-                    creep.moveTo(target, {
-                        visualizePathStyle: { stroke: "#ffaa00" },
-                    });
                 }
             }
         }

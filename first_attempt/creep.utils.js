@@ -12,11 +12,6 @@ var creepUtils = {
      * @param {RoomTerrain} terrain - Room terrain object (pre-fetched for efficiency)
      */
     buildRoadIfNeeded: function (creep, terrain) {
-        // Only check periodically to avoid spam
-        if (Game.time % config.ROAD_BUILD_INTERVAL !== 0) {
-            return;
-        }
-
         const terrainCode = terrain.get(creep.pos.x, creep.pos.y);
         if (terrainCode === TERRAIN_MASK_WALL) {
             return; // Can't build on walls

@@ -11,13 +11,13 @@ var config = {
     MIN_HARVESTERS: 2,
 
     // Role Manager - maximum number of harvesters to maintain
-    MAX_HARVESTERS: 7,
+    MAX_HARVESTERS: 4,
 
     // Role Manager - minimum number of haulers to maintain (when storage exists)
     MIN_HAULERS: 2,
 
     // Role Manager - minimum number of upgraders to maintain
-    MIN_UPGRADERS: 1,
+    MIN_UPGRADERS: 2,
 
     // Spawner - target number of creeps to maintain
     MIN_CREEPS: 5,
@@ -36,9 +36,6 @@ var config = {
         HAULER_NEED_SCORE: 2, // per energy-needing structure (capped)
         HAULER_NEED_CAP: 5, // max structures counted toward hauler need
     },
-
-    // Creep Utils - how often to check if a road needs building (in ticks)
-    ROAD_BUILD_INTERVAL: 5,
 };
 
 module.exports = config;

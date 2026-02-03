@@ -23,6 +23,7 @@ var roleRepairer = {
             if (creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
                 creep.moveTo(target, {
                     visualizePathStyle: { stroke: "#ffaa00" },
+                    reusePath: 5,
                 });
             }
         } else {
@@ -40,6 +41,7 @@ var roleRepairer = {
                 if (creep.repair(target) == ERR_NOT_IN_RANGE) {
                     creep.moveTo(target, {
                         visualizePathStyle: { stroke: "#ffffff" },
+                        reusePath: 5,
                     });
                 }
             }

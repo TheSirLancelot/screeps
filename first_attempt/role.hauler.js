@@ -48,6 +48,7 @@ var roleHauler = {
                 ) {
                     creep.moveTo(target, {
                         visualizePathStyle: { stroke: "#ffaa00" },
+                        reusePath: 5,
                     });
                 }
             }
@@ -134,6 +135,7 @@ var roleHauler = {
                     if (creep.upgradeController(target) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffffff" },
+                            reusePath: 5,
                         });
                     }
                 } else {
@@ -142,6 +144,7 @@ var roleHauler = {
                     if (result == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffffff" },
+                            reusePath: 5,
                         });
                     }
                 }

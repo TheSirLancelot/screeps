@@ -4,11 +4,18 @@ var roleBuilder = require("role.builder");
 var roleRepairer = require("role.repairer");
 var roleHauler = require("role.hauler");
 var spawner = require("spawner");
-var roleEvaluator = require("role.evaluator");
 var roleManager = require("role.manager");
 var creepUtils = require("creep.utils");
 var towerManager = require("tower.manager");
 var creepCalculator = require("creep.calculator");
+
+var roleHandlers = {
+    harvester: roleHarvester,
+    upgrader: roleUpgrader,
+    builder: roleBuilder,
+    repairer: roleRepairer,
+    hauler: roleHauler,
+};
 
 module.exports.loop = function () {
     for (var name in Memory.creeps) {
@@ -47,8 +54,6 @@ module.exports.loop = function () {
     // Spawn new creeps if below minimum
     spawner.run(creepCount, recommendedMinCreeps);
 
-    // console.log("Total creeps: " + creepCount);
-
     if (Game.spawns["Spawn1"].spawning) {
         var spawningCreep = Game.creeps[Game.spawns["Spawn1"].spawning.name];
         Game.spawns["Spawn1"].room.visual.text(
@@ -71,20 +76,9 @@ module.exports.loop = function () {
         // Perform common maintenance tasks
         creepUtils.maintain(creep, terrain);
 
-        if (creep.memory.role == "harvester") {
-            roleHarvester.run(creep);
-        }
-        if (creep.memory.role == "upgrader") {
-            roleUpgrader.run(creep);
-        }
-        if (creep.memory.role == "builder") {
-            roleBuilder.run(creep);
-        }
-        if (creep.memory.role == "repairer") {
-            roleRepairer.run(creep);
-        }
-        if (creep.memory.role == "hauler") {
-            roleHauler.run(creep);
+        var roleHandler = roleHandlers[creep.memory.role];
+        if (roleHandler && roleHandler.run) {
+            roleHandler.run(creep);
         }
     }
 };

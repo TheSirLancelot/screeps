@@ -20,25 +20,50 @@ var roleUpgrader = {
             ) {
                 creep.moveTo(creep.room.controller, {
                     visualizePathStyle: { stroke: "#ffffff" },
+                    reusePath: 5,
                 });
             }
         } else {
-            // TODO: If no energy from storage/containers available, add fallback behavior.
-            var stores = creep.room.find(FIND_STRUCTURES, {
+            // Get energy from storage first, then containers, then sources
+            var storage = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
-                    (structure.structureType == STRUCTURE_STORAGE ||
-                        structure.structureType == STRUCTURE_CONTAINER) &&
+                    structure.structureType == STRUCTURE_STORAGE &&
                     structure.store[RESOURCE_ENERGY] > 0,
             });
-            var targets = stores;
-            var target = creep.pos.findClosestByPath(targets);
-            if (!target) {
-                return;
+
+            var containers = creep.room.find(FIND_STRUCTURES, {
+                filter: (structure) =>
+                    structure.structureType == STRUCTURE_CONTAINER &&
+                    structure.store[RESOURCE_ENERGY] > 0,
+            });
+
+            var target = null;
+            if (storage.length > 0) {
+                target = creep.pos.findClosestByPath(storage);
+            } else if (containers.length > 0) {
+                target = creep.pos.findClosestByPath(containers);
             }
-            if (creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-                creep.moveTo(target, {
-                    visualizePathStyle: { stroke: "#ffaa00" },
-                });
+
+            if (target) {
+                if (
+                    creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE
+                ) {
+                    creep.moveTo(target, {
+                        visualizePathStyle: { stroke: "#ffaa00" },
+                        reusePath: 5,
+                    });
+                }
+            } else {
+                var sources = creep.room.find(FIND_SOURCES);
+                target = creep.pos.findClosestByPath(sources);
+                if (target) {
+                    if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
+                        creep.moveTo(target, {
+                            visualizePathStyle: { stroke: "#ffaa00" },
+                            reusePath: 5,
+                        });
+                    }
+                }
             }
         }
         // Announce state changes: ⚡ for upgrading, ⛏️ for harvesting
