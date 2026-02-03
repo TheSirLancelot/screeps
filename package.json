@@ -3,6 +3,7 @@
     "@types/lodash": "^4.17.23",
     "@types/screeps": "^3.3.8",
     "grunt": "^1.6.1",
+    "grunt-cli": "^1.5.0",
     "grunt-screeps": "^1.5.0"
   }
 }
