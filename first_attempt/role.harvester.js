@@ -48,7 +48,7 @@ var roleHarvester = {
                 if (harvestResult == ERR_NOT_IN_RANGE) {
                     creep.moveTo(target, {
                         visualizePathStyle: { stroke: "#ffaa00" },
-                        reusePath: 5,
+                        reusePath: 20,
                     });
                 }
             }
@@ -132,7 +132,7 @@ var roleHarvester = {
                                 visualizePathStyle: {
                                     stroke: "#ffffff",
                                 },
-                                reusePath: 5,
+                                reusePath: 20,
                             });
                         }
                     } else {
@@ -145,7 +145,7 @@ var roleHarvester = {
                                 visualizePathStyle: {
                                     stroke: "#ffffff",
                                 },
-                                reusePath: 5,
+                                reusePath: 20,
                             });
                         }
                     }

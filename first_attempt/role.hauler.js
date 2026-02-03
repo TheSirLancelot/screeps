@@ -26,7 +26,10 @@ var roleHauler = {
 
             // Check for tombstones first (highest priority - they disappear)
             var tombstones = creep.room.find(FIND_TOMBSTONES, {
-                filter: (tombstone) => tombstone.store[RESOURCE_ENERGY] > 0,
+                filter: (tombstone) =>
+                    tombstone.store[RESOURCE_ENERGY] > 0 &&
+                    tombstone.creep &&
+                    tombstone.creep.my === true,
             });
 
             if (tombstones.length > 0) {
@@ -83,7 +86,7 @@ var roleHauler = {
                 ) {
                     creep.moveTo(target, {
                         visualizePathStyle: { stroke: "#ffaa00" },
-                        reusePath: 5,
+                        reusePath: 20,
                     });
                 }
             }
@@ -164,7 +167,7 @@ var roleHauler = {
                     if (creep.upgradeController(target) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffffff" },
-                            reusePath: 5,
+                            reusePath: 20,
                         });
                     }
                 } else {
@@ -173,7 +176,7 @@ var roleHauler = {
                     if (result == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffffff" },
-                            reusePath: 5,
+                            reusePath: 20,
                         });
                     }
                 }

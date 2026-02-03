@@ -19,7 +19,7 @@ var roleBuilder = {
                     if (creep.build(target) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffffff" },
-                            reusePath: 5,
+                            reusePath: 20,
                         });
                     }
                 }
@@ -50,7 +50,7 @@ var roleBuilder = {
                 if (result == ERR_NOT_IN_RANGE) {
                     creep.moveTo(target, {
                         visualizePathStyle: { stroke: "#ffaa00" },
-                        reusePath: 5,
+                        reusePath: 20,
                     });
                 }
             } else {
@@ -61,7 +61,7 @@ var roleBuilder = {
                     if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffaa00" },
-                            reusePath: 5,
+                            reusePath: 20,
                         });
                     }
                 }

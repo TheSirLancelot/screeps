@@ -78,8 +78,8 @@ var creepCalculator = {
             totalCreeps += config.MIN_HAULERS;
         }
 
-        // Ensure we're always recommending at least MIN_CREEPS + buffer for wiggle room
-        totalCreeps = Math.max(totalCreeps, config.MIN_CREEPS + 2);
+        // Ensure we're always recommending at least MIN_CREEPS
+        totalCreeps = Math.max(totalCreeps, config.MIN_CREEPS);
 
         return totalCreeps;
     },

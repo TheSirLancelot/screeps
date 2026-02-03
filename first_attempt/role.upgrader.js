@@ -20,7 +20,7 @@ var roleUpgrader = {
             ) {
                 creep.moveTo(creep.room.controller, {
                     visualizePathStyle: { stroke: "#ffffff" },
-                    reusePath: 5,
+                    reusePath: 20,
                 });
             }
         } else {
@@ -50,7 +50,7 @@ var roleUpgrader = {
                 ) {
                     creep.moveTo(target, {
                         visualizePathStyle: { stroke: "#ffaa00" },
-                        reusePath: 5,
+                        reusePath: 20,
                     });
                 }
             } else {
@@ -60,7 +60,7 @@ var roleUpgrader = {
                     if (creep.harvest(target) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {
                             visualizePathStyle: { stroke: "#ffaa00" },
-                            reusePath: 5,
+                            reusePath: 20,
                         });
                     }
                 }

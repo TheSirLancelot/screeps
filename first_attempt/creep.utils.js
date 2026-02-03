@@ -19,11 +19,19 @@ var creepUtils = {
 
         // Check if there's already a road here
         const structures = creep.pos.lookFor(LOOK_STRUCTURES);
-        const hasRoad = structures.some(
+        const road = structures.find(
             (structure) => structure.structureType === STRUCTURE_ROAD,
         );
 
-        if (hasRoad) {
+        if (road) {
+            // Repair road underfoot if damaged and creep can repair
+            if (
+                road.hits < road.hitsMax &&
+                creep.store[RESOURCE_ENERGY] > 0 &&
+                creep.getActiveBodyparts(WORK) > 0
+            ) {
+                creep.repair(road);
+            }
             return; // Already has a road
         }
 

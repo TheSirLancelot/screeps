@@ -23,7 +23,7 @@ var roleRepairer = {
             if (creep.withdraw(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
                 creep.moveTo(target, {
                     visualizePathStyle: { stroke: "#ffaa00" },
-                    reusePath: 5,
+                    reusePath: 20,
                 });
             }
         } else {
@@ -32,7 +32,8 @@ var roleRepairer = {
             var targets = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) =>
                     structure.hits < structure.hitsMax &&
-                    structure.structureType != STRUCTURE_WALL,
+                    structure.structureType != STRUCTURE_WALL &&
+                    structure.structureType != STRUCTURE_ROAD,
             });
             // TODO: If no repair targets exist, add fallback behavior (upgrade, build, or rally).
             if (targets.length > 0) {
@@ -41,7 +42,7 @@ var roleRepairer = {
                 if (creep.repair(target) == ERR_NOT_IN_RANGE) {
                     creep.moveTo(target, {
                         visualizePathStyle: { stroke: "#ffffff" },
-                        reusePath: 5,
+                        reusePath: 20,
                     });
                 }
             }

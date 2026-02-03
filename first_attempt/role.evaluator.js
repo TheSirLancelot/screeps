@@ -30,11 +30,12 @@ var roleEvaluator = {
     _scoreRepairer: function (room) {
         let score = 0;
 
-        // Count damaged structures (excluding walls)
+        // Count damaged structures (excluding walls and roads)
         const damagedStructures = room.find(FIND_STRUCTURES, {
             filter: (structure) =>
                 structure.hits < structure.hitsMax &&
-                structure.structureType !== STRUCTURE_WALL,
+                structure.structureType !== STRUCTURE_WALL &&
+                structure.structureType !== STRUCTURE_ROAD,
         });
         if (damagedStructures.length > 0) {
             score +=
