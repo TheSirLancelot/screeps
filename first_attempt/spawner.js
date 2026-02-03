@@ -128,42 +128,36 @@ function buildHaulerBody() {
 
 function buildGenericCreepBody() {
     // Generic body for creeps that may be reassigned to hauler/builder/upgrader/repairer
-    // Balance WORK (for construction/upgrading) + CARRY (for hauling) + MOVE (for speed)
-    // At 1500 energy: roughly 8 WORK + 8 CARRY + 6 MOVE = balanced for all roles
+    // Use WORK+CARRY pairs with 2 MOVE per pair (1 MOVE per WORK/CARRY part)
     const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;
 
-    // Cost per work-carry-move triplet (50 + 50 + 50 = 150)
-    const tripletCost =
-        BODYPART_COST[WORK] + BODYPART_COST[CARRY] + BODYPART_COST[MOVE];
-    const tripletCount = Math.min(
-        Math.floor(energyAvailable / tripletCost),
-        16, // Max 16 triplets (48 body parts)
+    const pairCost =
+        BODYPART_COST[WORK] + BODYPART_COST[CARRY] + 2 * BODYPART_COST[MOVE];
+    const pairCount = Math.min(
+        Math.floor(energyAvailable / pairCost),
+        12, // Max 12 pairs (48 body parts)
     );
-    let remainingEnergy = energyAvailable - tripletCount * tripletCost;
+    let remainingEnergy = energyAvailable - pairCount * pairCost;
 
     const body = [];
-    if (tripletCount === 0) {
-        // Fallback: minimal generic (if energy < 150)
+    if (pairCount === 0) {
+        // Fallback: minimal generic creep
         body.push(WORK, CARRY, MOVE);
-        console.log(
-            "Minimal generic body used (insufficient energy for triplet):",
-            JSON.stringify(body),
-            "energy:",
-            energyAvailable,
-        );
     } else {
-        // Add balanced triplets
-        for (let i = 0; i < tripletCount; i += 1) {
+        // Add WORK parts
+        for (let i = 0; i < pairCount; i += 1) {
             body.push(WORK);
         }
-        for (let i = 0; i < tripletCount; i += 1) {
+        // Add CARRY parts
+        for (let i = 0; i < pairCount; i += 1) {
             body.push(CARRY);
         }
-        for (let i = 0; i < tripletCount; i += 1) {
+        // Add paired MOVE parts (2 per pair = 1 per WORK/CARRY)
+        for (let i = 0; i < pairCount * 2; i += 1) {
             body.push(MOVE);
         }
 
-        // Add extra WORK if remaining energy allows (for upgrading/building power)
+        // Add extra WORK if remaining energy allows
         const maxExtraWork = 50 - body.length;
         const extraWork = Math.min(
             Math.floor(remainingEnergy / BODYPART_COST[WORK]),
@@ -174,21 +168,27 @@ function buildGenericCreepBody() {
         }
         remainingEnergy -= extraWork * BODYPART_COST[WORK];
 
-        // If still room and energy left, add extra MOVE
-        const maxExtraMove = 50 - body.length;
-        const extraMove = Math.min(
-            Math.floor(remainingEnergy / BODYPART_COST[MOVE]),
-            maxExtraMove,
-        );
-        for (let i = 0; i < extraMove; i += 1) {
-            body.push(MOVE);
+        // Ensure MOVE count >= WORK+CARRY count for mobility
+        const baseNonMoveCount = pairCount * 2 + extraWork;
+        const moveCount = body.filter((part) => part === MOVE).length;
+        if (moveCount < baseNonMoveCount) {
+            const missingMoves = Math.min(
+                baseNonMoveCount - moveCount,
+                50 - body.length,
+            );
+            for (let i = 0; i < missingMoves; i += 1) {
+                body.push(MOVE);
+            }
+        } else if (remainingEnergy >= BODYPART_COST[MOVE] && body.length < 50) {
+            // If we have extra energy and space, add extra MOVE
+            const extraMove = Math.min(
+                Math.floor(remainingEnergy / BODYPART_COST[MOVE]),
+                50 - body.length,
+            );
+            for (let i = 0; i < extraMove; i += 1) {
+                body.push(MOVE);
+            }
         }
-        console.log(
-            "Calculated generic body:",
-            JSON.stringify(body),
-            "energy:",
-            energyAvailable,
-        );
     }
 
     return body;
@@ -244,21 +244,29 @@ var spawner = {
         }
 
         // Priority 2: Spawn dedicated haulers (until MIN_HAULERS met)
+        // Count ONLY dedicated haulers (fixedRole: true), not generic creeps reassigned to hauler
         const haulerBody = buildHaulerBody();
-        const haulersByRoom = {};
+        const dedicatedHaulers = {};
         for (const name in Game.creeps) {
             const creep = Game.creeps[name];
-            if (creep.room === room && creep.memory.role === "hauler") {
-                haulersByRoom[name] = creep;
+            if (
+                creep.room === room &&
+                creep.memory.role === "hauler" &&
+                creep.memory.fixedRole === true
+            ) {
+                dedicatedHaulers[name] = creep;
             }
         }
-        const haulerCount = Object.keys(haulersByRoom).length;
+        const dedicatedHaulerCount = Object.keys(dedicatedHaulers).length;
 
         const haulerCost = haulerBody.reduce(
             (sum, part) => sum + BODYPART_COST[part],
             0,
         );
-        if (haulerCount < MIN_HAULERS && energyAvailable >= haulerCost) {
+        if (
+            dedicatedHaulerCount < MIN_HAULERS &&
+            energyAvailable >= haulerCost
+        ) {
             const criticallyLow = creepCount < CRITICAL_CREEPS;
             const shouldWait =
                 !criticallyLow && energyAvailable < energyCapacity;
@@ -311,8 +319,10 @@ var spawner = {
 
             if (body) {
                 const newName = "Creep" + Game.time;
+                // Spawn as builder initially; role manager will reassign based on room needs
+                // (builder/upgrader/repairer/hauler). Dedicated haulers handle pure hauling.
                 Game.spawns["Spawn1"].spawnCreep(body, newName, {
-                    memory: { role: "hauler" },
+                    memory: { role: "builder" },
                 });
             }
         }

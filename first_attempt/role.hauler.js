@@ -19,12 +19,22 @@ var roleHauler = {
         }
 
         if (creep.memory.hauling) {
-            // Priority 1: Get energy from containers (to keep them from filling up)
-            // Priority 2: Get energy from storage (main hauling distribution)
+            // Priority 1: Tombstones with energy (despawn in 5 ticks, grab before lost)
+            // Priority 2: Committed container or closest container
+            // Priority 3: Storage
             var target = null;
 
-            // If hauler has a committed container, try to use it first (avoid thrashing)
-            if (creep.memory.haulerSourceId) {
+            // Check for tombstones first (highest priority - they disappear)
+            var tombstones = creep.room.find(FIND_TOMBSTONES, {
+                filter: (tombstone) => tombstone.store[RESOURCE_ENERGY] > 0,
+            });
+
+            if (tombstones.length > 0) {
+                target = creep.pos.findClosestByPath(tombstones);
+            }
+
+            // If no tombstone, try committed container
+            if (!target && creep.memory.haulerSourceId) {
                 const committedTarget = Game.getObjectById(
                     creep.memory.haulerSourceId,
                 );
@@ -37,7 +47,7 @@ var roleHauler = {
                 }
             }
 
-            // If committed target is gone/empty, find a new one
+            // If committed target is gone/empty, find a new container (prioritize fullest)
             if (!target) {
                 var containers = creep.room.find(FIND_STRUCTURES, {
                     filter: (structure) =>
@@ -46,7 +56,13 @@ var roleHauler = {
                 });
 
                 if (containers.length > 0) {
-                    target = creep.pos.findClosestByPath(containers);
+                    // Find the fullest container to drain quickly
+                    target = containers.reduce((fullest, container) => {
+                        return container.store[RESOURCE_ENERGY] >
+                            fullest.store[RESOURCE_ENERGY]
+                            ? container
+                            : fullest;
+                    });
                 } else {
                     var storage = creep.room.find(FIND_STRUCTURES, {
                         filter: (structure) =>
