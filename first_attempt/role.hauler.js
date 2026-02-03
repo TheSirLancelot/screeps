@@ -21,23 +21,42 @@ var roleHauler = {
         if (creep.memory.hauling) {
             // Priority 1: Get energy from containers (to keep them from filling up)
             // Priority 2: Get energy from storage (main hauling distribution)
-            var containers = creep.room.find(FIND_STRUCTURES, {
-                filter: (structure) =>
-                    structure.structureType === STRUCTURE_CONTAINER &&
-                    structure.store[RESOURCE_ENERGY] > 0,
-            });
-
-            var storage = creep.room.find(FIND_STRUCTURES, {
-                filter: (structure) =>
-                    structure.structureType === STRUCTURE_STORAGE &&
-                    structure.store[RESOURCE_ENERGY] > 0,
-            });
-
             var target = null;
-            if (containers.length > 0) {
-                target = creep.pos.findClosestByPath(containers);
-            } else if (storage.length > 0) {
-                target = storage[0];
+
+            // If hauler has a committed container, try to use it first (avoid thrashing)
+            if (creep.memory.haulerSourceId) {
+                const committedTarget = Game.getObjectById(
+                    creep.memory.haulerSourceId,
+                );
+                if (
+                    committedTarget &&
+                    committedTarget.structureType === STRUCTURE_CONTAINER &&
+                    committedTarget.store[RESOURCE_ENERGY] > 0
+                ) {
+                    target = committedTarget;
+                }
+            }
+
+            // If committed target is gone/empty, find a new one
+            if (!target) {
+                var containers = creep.room.find(FIND_STRUCTURES, {
+                    filter: (structure) =>
+                        structure.structureType === STRUCTURE_CONTAINER &&
+                        structure.store[RESOURCE_ENERGY] > 0,
+                });
+
+                if (containers.length > 0) {
+                    target = creep.pos.findClosestByPath(containers);
+                } else {
+                    var storage = creep.room.find(FIND_STRUCTURES, {
+                        filter: (structure) =>
+                            structure.structureType === STRUCTURE_STORAGE &&
+                            structure.store[RESOURCE_ENERGY] > 0,
+                    });
+                    if (storage.length > 0) {
+                        target = storage[0];
+                    }
+                }
             }
 
             if (target) {
@@ -53,66 +72,60 @@ var roleHauler = {
                 }
             }
         } else {
-            // Deliver energy priority depends on where it came from
+            // Deliver energy with fixed priority: Spawns > Extensions > Towers > Storage > Controller
+            // This ensures spawns are always ready to spawn new creeps
             var targets = [];
 
-            // If we picked up from a container, prioritize delivering to storage
-            if (creep.memory.haulerSourceType === STRUCTURE_CONTAINER) {
-                var storage = creep.room.find(FIND_STRUCTURES, {
-                    filter: (structure) =>
-                        structure.structureType === STRUCTURE_STORAGE &&
-                        structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-                });
-                if (storage.length > 0) {
-                    targets = storage;
-                }
-            }
-
-            // Standard delivery priority if no storage target set: Spawn > Extensions > Tower > Controller
-            if (targets.length === 0) {
-                // Priority 1: Spawns
-                var spawns = creep.room.find(FIND_STRUCTURES, {
+            // Priority 1: Spawns (always fill spawns first so we can spawn immediately)
+            var spawns = creep.room.find(FIND_STRUCTURES, {
+                filter: (structure) => {
+                    return (
+                        structure.structureType == STRUCTURE_SPAWN &&
+                        structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+                    );
+                },
+            });
+            if (spawns.length > 0) {
+                targets = spawns;
+            } else {
+                // Priority 2: Extensions
+                var extensions = creep.room.find(FIND_STRUCTURES, {
                     filter: (structure) => {
                         return (
-                            structure.structureType == STRUCTURE_SPAWN &&
+                            structure.structureType == STRUCTURE_EXTENSION &&
                             structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0
                         );
                     },
                 });
-                if (spawns.length > 0) {
-                    targets = spawns;
+                if (extensions.length > 0) {
+                    targets = extensions;
                 } else {
-                    // Priority 2: Extensions
-                    var extensions = creep.room.find(FIND_STRUCTURES, {
+                    // Priority 3: Towers
+                    var towers = creep.room.find(FIND_STRUCTURES, {
                         filter: (structure) => {
                             return (
-                                structure.structureType ==
-                                    STRUCTURE_EXTENSION &&
+                                structure.structureType == STRUCTURE_TOWER &&
                                 structure.store.getFreeCapacity(
                                     RESOURCE_ENERGY,
                                 ) > 0
                             );
                         },
                     });
-                    if (extensions.length > 0) {
-                        targets = extensions;
+                    if (towers.length > 0) {
+                        targets = towers;
                     } else {
-                        // Priority 3: Towers
-                        var towers = creep.room.find(FIND_STRUCTURES, {
-                            filter: (structure) => {
-                                return (
-                                    structure.structureType ==
-                                        STRUCTURE_TOWER &&
-                                    structure.store.getFreeCapacity(
-                                        RESOURCE_ENERGY,
-                                    ) > 0
-                                );
-                            },
+                        // Priority 4: Storage
+                        var storage = creep.room.find(FIND_STRUCTURES, {
+                            filter: (structure) =>
+                                structure.structureType === STRUCTURE_STORAGE &&
+                                structure.store.getFreeCapacity(
+                                    RESOURCE_ENERGY,
+                                ) > 0,
                         });
-                        if (towers.length > 0) {
-                            targets = towers;
+                        if (storage.length > 0) {
+                            targets = storage;
                         } else {
-                            // Priority 4: Controller (upgrade)
+                            // Priority 5: Controller (upgrade)
                             if (
                                 creep.room.controller &&
                                 creep.room.controller.my
