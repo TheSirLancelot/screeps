@@ -1,4 +1,5 @@
 var config = require("config");
+var creepCalculator = require("creep.calculator");
 
 const MIN_CREEPS = config.MIN_CREEPS;
 const CRITICAL_CREEPS = config.CRITICAL_CREEPS;
@@ -70,19 +71,63 @@ function buildBodyForEnergy() {
     return body;
 }
 
+function buildMinerBody() {
+    // Efficient dedicated miner: 5 WORK yields 10 energy/tick (exactly drains a source in ~300 ticks)
+    return [WORK, WORK, WORK, WORK, WORK, CARRY, MOVE];
+}
+
 var spawner = {
     /**
-     * Spawns generic creeps until the calculated minimum is reached
-     * All creeps start as harvesters; role assignment happens elsewhere
+     * Spawns dedicated miners first, then generic creeps until the calculated minimum is reached
      * @param {number} creepCount - Current number of creeps
      * @param {number} calculatedMin - Dynamically calculated minimum (uses MIN_CREEPS as floor)
+     * @param {Room} room - Room to spawn for
      */
-    run: function (creepCount, calculatedMin) {
+    run: function (creepCount, calculatedMin, room) {
+        const energyAvailable = room.energyAvailable;
+        const energyCapacity = room.energyCapacityAvailable;
+
+        // Dedicated miners first: 1 miner per source (5 WORK parts drains 3000 energy in 300 ticks)
+        const minerBody = buildMinerBody();
+        const sources = room.find(FIND_SOURCES);
+        const minersBySource = {};
+        for (let i = 0; i < sources.length; i += 1) {
+            minersBySource[sources[i].id] = 0;
+        }
+        for (const name in Game.creeps) {
+            const creep = Game.creeps[name];
+            if (creep.room === room && creep.memory.role === "miner") {
+                const sid = creep.memory.sourceId;
+                if (sid && minersBySource[sid] !== undefined) {
+                    minersBySource[sid] += 1;
+                }
+            }
+        }
+
+        // Find first source that needs a miner
+        const minerCost = minerBody.reduce(
+            (sum, part) => sum + BODYPART_COST[part],
+            0,
+        );
+        if (energyAvailable >= minerCost) {
+            for (let i = 0; i < sources.length; i += 1) {
+                const source = sources[i];
+                if ((minersBySource[source.id] || 0) === 0) {
+                    const newName = "Miner" + Game.time;
+                    Game.spawns["Spawn1"].spawnCreep(minerBody, newName, {
+                        memory: {
+                            role: "miner",
+                            sourceId: source.id,
+                            fixedRole: true,
+                        },
+                    });
+                    return;
+                }
+            }
+        }
+
         const effectiveMin = Math.max(calculatedMin, MIN_CREEPS);
         if (creepCount < effectiveMin) {
-            const energyAvailable = Game.spawns["Spawn1"].room.energyAvailable;
-            const energyCapacity =
-                Game.spawns["Spawn1"].room.energyCapacityAvailable;
             const criticallyLow = creepCount < CRITICAL_CREEPS;
 
             // If not critically low, wait until energy is full before spawning
@@ -111,7 +156,7 @@ var spawner = {
             if (body) {
                 const newName = "Creep" + Game.time;
                 Game.spawns["Spawn1"].spawnCreep(body, newName, {
-                    memory: { role: "harvester" },
+                    memory: { role: "hauler" },
                 });
             }
         }

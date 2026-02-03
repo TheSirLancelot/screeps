@@ -1,8 +1,8 @@
-var roleHarvester = require("role.harvester");
 var roleUpgrader = require("role.upgrader");
 var roleBuilder = require("role.builder");
 var roleRepairer = require("role.repairer");
 var roleHauler = require("role.hauler");
+var roleMiner = require("role.miner");
 var spawner = require("spawner");
 var roleManager = require("role.manager");
 var creepUtils = require("creep.utils");
@@ -10,7 +10,7 @@ var towerManager = require("tower.manager");
 var creepCalculator = require("creep.calculator");
 
 var roleHandlers = {
-    harvester: roleHarvester,
+    miner: roleMiner,
     upgrader: roleUpgrader,
     builder: roleBuilder,
     repairer: roleRepairer,
@@ -47,12 +47,12 @@ module.exports.loop = function () {
               ? `waiting (${energyAvailable}/${energyCapacity}E)`
               : `idle`;
         console.log(
-            `[Tick ${Game.time}] Creeps: ${creepCount}/${recommendedMinCreeps} (H=${roleStats.harvester} B=${roleStats.builder} U=${roleStats.upgrader} R=${roleStats.repairer} Ha=${roleStats.hauler}) | Spawner: ${spawningStatus}`,
+            `[Tick ${Game.time}] Creeps: ${creepCount}/${recommendedMinCreeps} (M=${roleStats.miner} Ha=${roleStats.hauler} B=${roleStats.builder} U=${roleStats.upgrader} R=${roleStats.repairer}) | Spawner: ${spawningStatus}`,
         );
     }
 
     // Spawn new creeps if below minimum
-    spawner.run(creepCount, recommendedMinCreeps);
+    spawner.run(creepCount, recommendedMinCreeps, Game.spawns["Spawn1"].room);
 
     if (Game.spawns["Spawn1"].spawning) {
         var spawningCreep = Game.creeps[Game.spawns["Spawn1"].spawning.name];
