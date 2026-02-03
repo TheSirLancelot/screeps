@@ -17,7 +17,7 @@ var config = {
     MIN_HAULERS: 2,
 
     // Role Manager - minimum number of upgraders to maintain
-    MIN_UPGRADERS: 2,
+    MIN_UPGRADERS: 3,
 
     // Spawner - target number of creeps to maintain
     MIN_CREEPS: 6,
@@ -32,7 +32,7 @@ var config = {
         REPAIRER_CRITICAL_SCORE: 20, // per critical structure
         HARVESTER_ENERGY_DIVISOR: 100, // total source energy divided by this
         HARVESTER_FALLBACK_SCORE: 5, // when sources empty but storage has energy
-        UPGRADER_PROGRESS_SCORE: 30, // scaled by room controller progress (doubled to prioritize upgrading)
+        UPGRADER_PROGRESS_SCORE: 50, // scaled by room controller progress (doubled to prioritize upgrading)
         HAULER_NEED_SCORE: 2, // per energy-needing structure (capped)
         HAULER_NEED_CAP: 5, // max structures counted toward hauler need
     },
