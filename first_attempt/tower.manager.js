@@ -25,13 +25,14 @@ var towerManager = {
                 continue; // Skip repair when attacking
             }
 
-            // Priority 2: Repair damaged structures (excluding walls)
+            // Priority 2: Repair damaged structures (excluding walls and roads)
             const closestDamagedStructure = tower.pos.findClosestByRange(
                 FIND_STRUCTURES,
                 {
                     filter: (structure) =>
                         structure.hits < structure.hitsMax &&
-                        structure.structureType !== STRUCTURE_WALL,
+                        structure.structureType !== STRUCTURE_WALL &&
+                        structure.structureType !== STRUCTURE_ROAD,
                 },
             );
             if (closestDamagedStructure) {
