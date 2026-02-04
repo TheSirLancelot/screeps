@@ -40,10 +40,7 @@ var remoteManager = {
             ).length;
 
             // Calculate recommended minimum for this room
-            const recommendedMinCreeps = Math.max(
-                config.MIN_CREEPS,
-                sourceCount * 3,
-            );
+            const recommendedMinCreeps = config.MIN_CREEPS;
             const minHaulers = config.MIN_HAULERS || 2;
 
             // If any main room is understaffed OR missing critical roles, don't spawn remote creeps
@@ -132,8 +129,8 @@ var remoteManager = {
         // Spawn attackers if hostiles are present (but don't block other spawning)
         this.spawnRemoteAttackersIfNeeded(remoteRoomName, remoteRoom);
 
-        // Spawn remote builders if construction sites exist
-        if (remoteSites.length > 0) {
+        // Spawn remote builders - always spawn at least one for new rooms to create construction sites
+        if (remoteSites.length > 0 || existingRemoteBuilders.length === 0) {
             this.spawnRemoteBuildersIfNeeded(
                 remoteRoomName,
                 remoteSources,
@@ -481,12 +478,8 @@ var remoteManager = {
                         CARRY,
                         CARRY,
                         CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
+                        MOVE,
+                        MOVE,
                         MOVE,
                         MOVE,
                         MOVE,

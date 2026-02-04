@@ -78,117 +78,72 @@ function buildMinerBody() {
 }
 
 function buildHaulerBody(room) {
-    // Haulers only withdraw/transfer (no harvesting), so maximize CARRY:MOVE ratio
-    // At 1500 energy: ~15 CARRY + 15 MOVE (1:1 ratio for balanced speed/capacity)
+    // Haulers with 10 CARRY + 10 MOVE (1:1 ratio) = 1000 energy
+    // This allows frequent spawning and keeps miners from backing up
     const energyAvailable = room.energyAvailable;
-    const carryMovePairCost = BODYPART_COST[CARRY] + BODYPART_COST[MOVE]; // 50 + 50 = 100
-    const pairCount = Math.min(
-        Math.floor(energyAvailable / carryMovePairCost),
-        25, // Max 25 pairs (50 body parts total)
-    );
-    let remainingEnergy = energyAvailable - pairCount * carryMovePairCost;
 
-    const body = [];
-    if (pairCount === 0) {
-        // Fallback: minimal hauler (if energy < 100, which is rare)
-        body.push(CARRY, MOVE);
+    // Target body: 10 CARRY + 10 MOVE
+    const targetCarry = 10;
+    const targetMove = 10;
+    const targetCost = (targetCarry + targetMove) * BODYPART_COST[CARRY]; // 1000 energy
+
+    if (energyAvailable >= targetCost) {
+        // Build target body
+        const body = [];
+        for (let i = 0; i < targetCarry; i += 1) {
+            body.push(CARRY);
+        }
+        for (let i = 0; i < targetMove; i += 1) {
+            body.push(MOVE);
+        }
+        return body;
+    } else if (energyAvailable >= 100) {
+        // Fallback: scale down proportionally
+        const carryMovePairCost = BODYPART_COST[CARRY] + BODYPART_COST[MOVE]; // 100
+        const pairCount = Math.floor(energyAvailable / carryMovePairCost);
+        const body = [];
+        for (let i = 0; i < pairCount; i += 1) {
+            body.push(CARRY);
+        }
+        for (let i = 0; i < pairCount; i += 1) {
+            body.push(MOVE);
+        }
+        return body;
     } else {
-        // Add all CARRY parts first
-        for (let i = 0; i < pairCount; i += 1) {
-            body.push(CARRY);
-        }
-        // Add paired MOVE parts
-        for (let i = 0; i < pairCount; i += 1) {
-            body.push(MOVE);
-        }
-        // Add extra CARRY if remaining energy allows (up to body size limit)
-        const maxExtraCarry = 50 - body.length;
-        const extraCarry = Math.min(
-            Math.floor(remainingEnergy / BODYPART_COST[CARRY]),
-            maxExtraCarry,
-        );
-        for (let i = 0; i < extraCarry; i += 1) {
-            body.push(CARRY);
-        }
-        remainingEnergy -= extraCarry * BODYPART_COST[CARRY];
-
-        // If still room and energy left, add extra MOVE for speed
-        const maxExtraMove = 50 - body.length;
-        const extraMove = Math.min(
-            Math.floor(remainingEnergy / BODYPART_COST[MOVE]),
-            maxExtraMove,
-        );
-        for (let i = 0; i < extraMove; i += 1) {
-            body.push(MOVE);
-        }
+        // Minimal fallback
+        return [CARRY, MOVE];
     }
-
-    return body;
 }
 
 function buildGenericCreepBody(room) {
-    // Generic body for creeps that may be reassigned to hauler/builder/upgrader/repairer
-    // Use WORK+CARRY pairs with 2 MOVE per pair (1 MOVE per WORK/CARRY part)
+    // Generic body for builder/upgrader/repairer - smaller bodies that spawn faster
+    // Target: 3 WORK + 2 CARRY + 2 MOVE = ~350 energy
+    // Prioritize spawning frequency over individual creep size
     const energyAvailable = room.energyAvailable;
 
-    const pairCost =
-        BODYPART_COST[WORK] + BODYPART_COST[CARRY] + 2 * BODYPART_COST[MOVE];
-    const pairCount = Math.min(
-        Math.floor(energyAvailable / pairCost),
-        12, // Max 12 pairs (48 body parts)
-    );
-    let remainingEnergy = energyAvailable - pairCount * pairCost;
+    // Core body: 3 WORK + 2 CARRY + 2 MOVE = 350 energy
+    const body = [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE];
 
-    const body = [];
-    if (pairCount === 0) {
-        // Fallback: minimal generic creep
-        body.push(WORK, CARRY, MOVE);
-    } else {
-        // Add WORK parts
-        for (let i = 0; i < pairCount; i += 1) {
-            body.push(WORK);
-        }
-        // Add CARRY parts
-        for (let i = 0; i < pairCount; i += 1) {
-            body.push(CARRY);
-        }
-        // Add paired MOVE parts (2 per pair = 1 per WORK/CARRY)
-        for (let i = 0; i < pairCount * 2; i += 1) {
-            body.push(MOVE);
-        }
+    // If we have extra energy, add pairs of WORK + MOVE (not CARRY, work is the bottleneck)
+    let remainingEnergy = energyAvailable - 350;
+    while (
+        remainingEnergy >= BODYPART_COST[WORK] + BODYPART_COST[MOVE] &&
+        body.length < 50
+    ) {
+        body.push(WORK);
+        body.push(MOVE);
+        remainingEnergy -= BODYPART_COST[WORK] + BODYPART_COST[MOVE];
+    }
 
-        // Add extra WORK if remaining energy allows
-        const maxExtraWork = 50 - body.length;
-        const extraWork = Math.min(
-            Math.floor(remainingEnergy / BODYPART_COST[WORK]),
-            maxExtraWork,
-        );
-        for (let i = 0; i < extraWork; i += 1) {
-            body.push(WORK);
-        }
-        remainingEnergy -= extraWork * BODYPART_COST[WORK];
-
-        // Ensure MOVE count >= WORK+CARRY count for mobility
-        const baseNonMoveCount = pairCount * 2 + extraWork;
-        const moveCount = body.filter((part) => part === MOVE).length;
-        if (moveCount < baseNonMoveCount) {
-            const missingMoves = Math.min(
-                baseNonMoveCount - moveCount,
-                50 - body.length,
-            );
-            for (let i = 0; i < missingMoves; i += 1) {
-                body.push(MOVE);
-            }
-        } else if (remainingEnergy >= BODYPART_COST[MOVE] && body.length < 50) {
-            // If we have extra energy and space, add extra MOVE
-            const extraMove = Math.min(
-                Math.floor(remainingEnergy / BODYPART_COST[MOVE]),
-                50 - body.length,
-            );
-            for (let i = 0; i < extraMove; i += 1) {
-                body.push(MOVE);
-            }
-        }
+    // If still room and energy, add one more MOVE for every non-MOVE part (mobility)
+    const nonMoveParts = body.filter((p) => p !== MOVE).length;
+    const moveParts = body.filter((p) => p === MOVE).length;
+    if (
+        moveParts < nonMoveParts &&
+        remainingEnergy >= BODYPART_COST[MOVE] &&
+        body.length < 50
+    ) {
+        body.push(MOVE);
     }
 
     return body;

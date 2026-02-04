@@ -29,6 +29,69 @@ var roleHandlers = {
     attacker: roleAttacker,
 };
 
+function reportEnergyStats(room) {
+    Memory.energyStats = Memory.energyStats || {};
+    Memory.energyStats[room.name] = Memory.energyStats[room.name] || {};
+
+    const stats = Memory.energyStats[room.name];
+    const storage = room.storage;
+    if (!storage) return;
+
+    const currentEnergy = storage.store[RESOURCE_ENERGY];
+
+    // Initialize on first run
+    if (!stats.lastEnergy) {
+        stats.lastEnergy = currentEnergy;
+        stats.lastTick = Game.time;
+        return;
+    }
+
+    // Calculate stats every 100 ticks
+    const ticksDelta = Game.time - stats.lastTick;
+    if (ticksDelta >= 100) {
+        const energyDelta = currentEnergy - stats.lastEnergy;
+        const energyPerTick = energyDelta / ticksDelta;
+
+        // Count active local miners (energy generation)
+        const localMiners = Object.values(Game.creeps).filter(
+            (c) =>
+                c.room.name === room.name &&
+                c.memory.role === "miner" &&
+                !c.memory.targetRoom,
+        );
+
+        // Count remote haulers (energy inflow from remote rooms)
+        const remoteHaulers = Object.values(Game.creeps).filter(
+            (c) =>
+                c.memory.role === "remote_hauler" &&
+                c.memory.homeRoom === room.name,
+        );
+
+        // Estimate energy generation (5 WORK parts per miner = 10 energy/tick per miner)
+        const localGeneration = localMiners.length * 10;
+
+        // Remote haulers are harder to estimate but typically carry 50+ energy per trip
+        // Assume average 8-10 energy/tick contribution (varies by travel time)
+        const remoteGeneration = remoteHaulers.length * 8;
+
+        const totalEstimated = localGeneration + remoteGeneration;
+
+        // Format report
+        const status =
+            energyPerTick > 0
+                ? `SURPLUS (+${Math.round(energyPerTick)}/tick)`
+                : `DEFICIT (${Math.round(energyPerTick)}/tick)`;
+
+        console.log(
+            `[${room.name}] ${status} | Storage: ${currentEnergy}E | Local: ${localGeneration}E/tick (${localMiners.length} miners) + Remote: ${remoteGeneration}E/tick (${remoteHaulers.length} haulers) = ${totalEstimated}E/tick est.`,
+        );
+
+        // Update for next cycle
+        stats.lastEnergy = currentEnergy;
+        stats.lastTick = Game.time;
+    }
+}
+
 module.exports.loop = function () {
     for (var name in Memory.creeps) {
         if (!Game.creeps[name]) {
@@ -71,6 +134,9 @@ module.exports.loop = function () {
     for (const roomName of ownedRoomNames) {
         const room = Game.rooms[roomName];
         if (!room) continue; // Room no longer visible
+
+        // Report energy stats every 100 ticks
+        reportEnergyStats(room);
 
         roleManager.manageAllCreeps(room);
         const roleStats = roleManager.getRoleStats(room);
