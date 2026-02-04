@@ -5,6 +5,7 @@ var roleHauler = require("role.hauler");
 var roleMiner = require("role.miner");
 var roleReserver = require("role.reserver");
 var roleRemoteBuilder = require("role.remote_builder");
+var roleRemoteRepairer = require("role.remote_repairer");
 var spawner = require("spawner");
 var roleManager = require("role.manager");
 var creepUtils = require("creep.utils");
@@ -20,6 +21,7 @@ var roleHandlers = {
     hauler: roleHauler,
     reserver: roleReserver,
     remote_builder: roleRemoteBuilder,
+    remote_repairer: roleRemoteRepairer,
 };
 
 module.exports.loop = function () {
@@ -161,7 +163,7 @@ module.exports.loop = function () {
                 }
             }
 
-            if (needsReserver && !existingReserver) {
+            if (needsReserver && !existingReserver && Game.time % 10 === 0) {
                 console.log(
                     `Remote room ${remoteRoomName} needs reserver (reservation: ${reservation ? reservation.ticksToEnd : 0})`,
                 );
@@ -316,22 +318,17 @@ module.exports.loop = function () {
                         c.memory.fixedRole === true,
                 );
 
-                // Spawn one hauler per source with a container
+                // Spawn one hauler per source with containers
                 for (const source of remoteSources) {
-                    const nearbyContainers = source.pos.findInRange(
-                        FIND_STRUCTURES,
-                        1,
-                        {
-                            filter: (s) =>
-                                s.structureType === STRUCTURE_CONTAINER,
-                        },
+                    // Find miner assigned to this source
+                    const assignedMiner = existingRemoteMiners.find(
+                        (c) => c.memory.assignedSourceId === source.id,
                     );
 
-                    if (nearbyContainers.length > 0) {
-                        const container = nearbyContainers[0];
+                    if (assignedMiner) {
                         const assignedHauler = existingRemoteHaulers.find(
                             (c) =>
-                                c.memory.assignedContainerId === container.id,
+                                c.memory.assignedMinerId === assignedMiner.id,
                         );
 
                         if (!assignedHauler) {
@@ -378,7 +375,8 @@ module.exports.loop = function () {
                                         memory: {
                                             role: "hauler",
                                             targetRoom: remoteRoomName,
-                                            assignedContainerId: container.id,
+                                            homeRoom: spawn.room.name,
+                                            assignedMinerId: assignedMiner.id,
                                             fixedRole: true,
                                         },
                                     },
@@ -386,10 +384,60 @@ module.exports.loop = function () {
                                 if (result === OK) {
                                     if (Game.time % 50 === 0) {
                                         console.log(
-                                            `Spawning remote hauler ${name} for ${remoteRoomName} container ${container.id}`,
+                                            `Spawning remote hauler ${name} for ${remoteRoomName} miner ${assignedMiner.name}`,
                                         );
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Spawn remote repairers after roads are built
+                const existingRepairers = Object.values(Game.creeps).filter(
+                    (c) =>
+                        c.memory.role === "remote_repairer" &&
+                        c.memory.targetRoom === remoteRoomName,
+                );
+
+                if (existingRepairers.length === 0) {
+                    const spawn = Object.values(Game.spawns).find(
+                        (s) => !s.spawning,
+                    );
+                    const repairerBody = [
+                        WORK,
+                        WORK,
+                        WORK,
+                        WORK,
+                        CARRY,
+                        CARRY,
+                        CARRY,
+                        CARRY,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                    ];
+                    const repairerCost = 1200;
+
+                    if (spawn && spawn.room.energyAvailable >= repairerCost) {
+                        const name = `RemoteRepairer_${remoteRoomName}_${Game.time}`;
+                        const result = spawn.spawnCreep(repairerBody, name, {
+                            memory: {
+                                role: "remote_repairer",
+                                targetRoom: remoteRoomName,
+                                fixedRole: true,
+                            },
+                        });
+                        if (result === OK) {
+                            if (Game.time % 50 === 0) {
+                                console.log(
+                                    `Spawning remote repairer ${name} for ${remoteRoomName}`,
+                                );
                             }
                         }
                     }

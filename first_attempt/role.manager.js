@@ -45,7 +45,6 @@ var roleManager = {
 
         if (shouldReevaluate) {
             let recommendedRole = roleEvaluator.evaluateRole(room, creep);
-            let forcedHarvester = false;
 
             // EMERGENCY: If hostiles in room, everyone becomes hauler to keep towers full
             const hostiles = room.find(FIND_HOSTILE_CREEPS);
@@ -54,10 +53,9 @@ var roleManager = {
                     `${creep.name}: EMERGENCY - forcing role to hauler (${hostiles.length} hostiles in room)`,
                 );
                 recommendedRole = "hauler";
-                forcedHarvester = true;
             }
 
-            // If population in this room is low, force haulers to prioritize energy
+            // If population in this room is critically low, force haulers to prioritize energy
             let totalCreeps = 0;
             for (const cname in Game.creeps) {
                 const c = Game.creeps[cname];
@@ -65,31 +63,14 @@ var roleManager = {
                     totalCreeps += 1;
                 }
             }
-            if (totalCreeps < 6 && recommendedRole !== "hauler") {
+            if (
+                totalCreeps <= config.CRITICAL_CREEPS &&
+                recommendedRole !== "hauler"
+            ) {
                 console.log(
-                    `${creep.name}: forcing role to hauler (room population ${totalCreeps} < 6)`,
+                    `${creep.name}: forcing role to hauler (room population ${totalCreeps} <= ${config.CRITICAL_CREEPS})`,
                 );
                 recommendedRole = "hauler";
-                forcedHarvester = true;
-            }
-
-            // If there are currently no haulers (or very few), prioritize creating at least one
-            // This prevents situations where all creeps are non-haulers
-            try {
-                const haulers =
-                    roleStats && roleStats.hauler ? roleStats.hauler : 0;
-                if (
-                    haulers < config.MIN_HAULERS &&
-                    recommendedRole !== "hauler"
-                ) {
-                    console.log(
-                        `${creep.name}: forcing role to hauler (haulers ${haulers} < ${config.MIN_HAULERS})`,
-                    );
-                    recommendedRole = "hauler";
-                    forcedHarvester = true;
-                }
-            } catch (e) {
-                // If roleStats isn't provided for some reason, skip this check
             }
 
             // Ensure at least one upgrader to avoid controller downgrade
@@ -131,29 +112,6 @@ var roleManager = {
                         recommendedRole = "upgrader";
                     }
                 }
-            }
-
-            // If there are currently no haulers (or very few), prioritize creating at least one
-            // This prevents logistics failures when storage exists
-            try {
-                const storage = room.find(FIND_STRUCTURES, {
-                    filter: (s) => s.structureType === STRUCTURE_STORAGE,
-                });
-                if (storage.length > 0) {
-                    const haulers =
-                        roleStats && roleStats.hauler ? roleStats.hauler : 0;
-                    if (
-                        haulers < config.MIN_HAULERS &&
-                        recommendedRole !== "hauler"
-                    ) {
-                        console.log(
-                            `${creep.name}: forcing role to hauler (haulers ${haulers} < ${config.MIN_HAULERS})`,
-                        );
-                        recommendedRole = "hauler";
-                    }
-                }
-            } catch (e) {
-                // If roleStats isn't provided for some reason, skip this check
             }
 
             // Prevent switching away from hauler if it would result in zero haulers (when storage exists)

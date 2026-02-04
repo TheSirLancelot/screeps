@@ -20,7 +20,7 @@ var config = {
     MIN_UPGRADERS: 1,
 
     // Spawner - target number of creeps to maintain
-    MIN_CREEPS: 6,
+    MIN_CREEPS: 5,
 
     // Spawner - population threshold below which to spawn even without full energy
     CRITICAL_CREEPS: 3,
