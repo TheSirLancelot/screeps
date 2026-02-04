@@ -59,7 +59,7 @@ var roleManager = {
             let totalCreeps = 0;
             for (const cname in Game.creeps) {
                 const c = Game.creeps[cname];
-                if (c && c.room === room) {
+                if (c && c.room === room && !c.memory.targetRoom) {
                     totalCreeps += 1;
                 }
             }

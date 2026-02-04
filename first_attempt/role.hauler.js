@@ -13,42 +13,63 @@ var roleHauler = {
         }
 
         if (creep.memory.hauling) {
-            // Priority 1: Dropped energy (temporary, disappears fast)
+            // Priority 1: Dropped energy and tombstones (both temporary, disappear fast)
             var target = null;
 
             var dropped = creep.room.find(FIND_DROPPED_RESOURCES, {
                 filter: (resource) => resource.resourceType === RESOURCE_ENERGY,
             });
-            if (dropped.length > 0) {
-                target = creep.pos.findClosestByPath(dropped);
-                if (target && creep.pickup(target) === ERR_NOT_IN_RANGE) {
-                    creep.moveTo(target, {
-                        visualizePathStyle: { stroke: "#ffaa00" },
-                        reusePath: 20,
-                    });
-                }
-                return;
-            }
 
-            // Priority 2: Tombstones (temporary, disappear after 5 ticks)
             var tombstones = creep.room.find(FIND_TOMBSTONES, {
                 filter: (tombstone) => tombstone.store[RESOURCE_ENERGY] > 0,
             });
-            if (tombstones.length > 0) {
-                target = creep.pos.findClosestByPath(tombstones);
-                if (
-                    target &&
-                    creep.withdraw(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE
-                ) {
-                    creep.moveTo(target, {
-                        visualizePathStyle: { stroke: "#ffaa00" },
-                        reusePath: 20,
-                    });
+
+            // Check both dropped energy and tombstones, pick closest
+            if (dropped.length > 0 || tombstones.length > 0) {
+                var closestDropped =
+                    dropped.length > 0
+                        ? creep.pos.findClosestByPath(dropped)
+                        : null;
+                var closestTombstone =
+                    tombstones.length > 0
+                        ? creep.pos.findClosestByPath(tombstones)
+                        : null;
+
+                // Pick the closest target
+                if (closestDropped && closestTombstone) {
+                    var distDropped = PathFinder.search(creep.pos, {
+                        pos: closestDropped.pos,
+                        range: 1,
+                    }).path.length;
+                    var distTombstone = PathFinder.search(creep.pos, {
+                        pos: closestTombstone.pos,
+                        range: 1,
+                    }).path.length;
+                    target =
+                        distDropped <= distTombstone
+                            ? closestDropped
+                            : closestTombstone;
+                } else {
+                    target = closestDropped || closestTombstone;
+                }
+
+                if (target) {
+                    var actionResult =
+                        target instanceof Resource
+                            ? creep.pickup(target)
+                            : creep.withdraw(target, RESOURCE_ENERGY);
+
+                    if (actionResult === ERR_NOT_IN_RANGE) {
+                        creep.moveTo(target, {
+                            visualizePathStyle: { stroke: "#ffaa00" },
+                            reusePath: 20,
+                        });
+                    }
                 }
                 return;
             }
 
-            // Priority 3: If assigned to a miner, work only with containers at that miner's location
+            // Priority 2: If assigned to a miner, work only with containers at that miner's location
             if (creep.memory.assignedMinerId) {
                 const assignedMiner = Game.getObjectById(
                     creep.memory.assignedMinerId,
@@ -85,8 +106,16 @@ var roleHauler = {
                                 reusePath: 20,
                             });
                         }
-                        return;
+                    } else {
+                        // No adjacent container yet; wait by the assigned miner
+                        if (creep.pos.getRangeTo(assignedMiner) > 1) {
+                            creep.moveTo(assignedMiner, {
+                                visualizePathStyle: { stroke: "#ffaa00" },
+                                reusePath: 20,
+                            });
+                        }
                     }
+                    return;
                 }
             }
 

@@ -7,6 +7,26 @@ var config = require("config");
 
 var creepUtils = {
     /**
+     * Repair a road underfoot if present and damaged
+     * @param {Creep} creep - The creep to check
+     */
+    repairRoadUnderfoot: function (creep) {
+        const structures = creep.pos.lookFor(LOOK_STRUCTURES);
+        const road = structures.find(
+            (structure) => structure.structureType === STRUCTURE_ROAD,
+        );
+
+        if (
+            road &&
+            road.hits < road.hitsMax &&
+            creep.store[RESOURCE_ENERGY] > 0 &&
+            creep.getActiveBodyparts(WORK) > 0
+        ) {
+            creep.repair(road);
+        }
+    },
+
+    /**
      * Check if creep is standing on a road and build one if needed
      * @param {Creep} creep - The creep to check
      * @param {RoomTerrain} terrain - Room terrain object (pre-fetched for efficiency)
@@ -24,14 +44,6 @@ var creepUtils = {
         );
 
         if (road) {
-            // Repair road underfoot if damaged and creep can repair
-            if (
-                road.hits < road.hitsMax &&
-                creep.store[RESOURCE_ENERGY] > 0 &&
-                creep.getActiveBodyparts(WORK) > 0
-            ) {
-                creep.repair(road);
-            }
             return; // Already has a road
         }
 
@@ -62,10 +74,19 @@ var creepUtils = {
      * @param {RoomTerrain} terrain - Room terrain object (pre-fetched for efficiency)
      */
     maintain: function (creep, terrain) {
+        this.repairRoadUnderfoot(creep);
         if (
             creep.memory.role === "reserver" ||
             creep.memory.role === "remote_builder" ||
+            creep.memory.role === "remote_repairer" ||
+            creep.memory.role === "remote_hauler" ||
             (creep.memory.role === "miner" && creep.memory.targetRoom)
+        ) {
+            return;
+        }
+        if (
+            creep.memory.targetRoom &&
+            creep.room.name === creep.memory.targetRoom
         ) {
             return;
         }

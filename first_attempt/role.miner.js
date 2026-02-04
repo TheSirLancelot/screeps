@@ -138,17 +138,45 @@ var roleMiner = {
             return;
         }
 
-        if (
-            targetContainer &&
-            targetContainer.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
-            creep.store[RESOURCE_ENERGY] > 0
-        ) {
-            creep.transfer(targetContainer, RESOURCE_ENERGY);
-        } else if (
-            openContainers.length === 0 &&
-            creep.store.getFreeCapacity() === 0
-        ) {
-            creep.drop(RESOURCE_ENERGY);
+        // Remote miners: only transfer to containers with space, drop otherwise
+        if (creep.memory.targetRoom) {
+            if (creep.store[RESOURCE_ENERGY] > 0) {
+                const adjacentContainers = source.pos.findInRange(
+                    FIND_STRUCTURES,
+                    2,
+                    {
+                        filter: (structure) =>
+                            structure.structureType === STRUCTURE_CONTAINER &&
+                            structure.store.getFreeCapacity(RESOURCE_ENERGY) >
+                                0,
+                    },
+                );
+
+                if (adjacentContainers.length > 0) {
+                    const target =
+                        creep.pos.findClosestByRange(adjacentContainers);
+                    if (target) {
+                        creep.transfer(target, RESOURCE_ENERGY);
+                    }
+                } else if (creep.store.getFreeCapacity() === 0) {
+                    // No containers with space and we're full, drop it
+                    creep.drop(RESOURCE_ENERGY);
+                }
+            }
+        } else {
+            // Local miners: use original logic (prefer open containers, drop if none available)
+            if (
+                targetContainer &&
+                targetContainer.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+                creep.store[RESOURCE_ENERGY] > 0
+            ) {
+                creep.transfer(targetContainer, RESOURCE_ENERGY);
+            } else if (
+                openContainers.length === 0 &&
+                creep.store.getFreeCapacity() === 0
+            ) {
+                creep.drop(RESOURCE_ENERGY);
+            }
         }
     },
 };
