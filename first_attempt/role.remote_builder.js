@@ -227,12 +227,56 @@ var roleRemoteBuilder = {
                         reusePath: 20,
                     });
                 }
+            } else if (creep.store[RESOURCE_ENERGY] > 0) {
+                // No construction sites: repair nearby structures instead
+                let repairTarget = null;
+
+                const damagedContainers = creep.room.find(FIND_STRUCTURES, {
+                    filter: (s) =>
+                        s.structureType === STRUCTURE_CONTAINER &&
+                        s.hits < s.hitsMax,
+                });
+                if (damagedContainers.length > 0) {
+                    repairTarget =
+                        creep.pos.findClosestByPath(damagedContainers);
+                }
+
+                if (!repairTarget) {
+                    const damagedStructures = creep.room.find(FIND_STRUCTURES, {
+                        filter: (s) =>
+                            s.hits < s.hitsMax &&
+                            s.structureType !== STRUCTURE_WALL &&
+                            s.structureType !== STRUCTURE_RAMPART,
+                    });
+                    if (damagedStructures.length > 0) {
+                        repairTarget =
+                            creep.pos.findClosestByPath(damagedStructures);
+                    }
+                }
+
+                if (
+                    repairTarget &&
+                    creep.repair(repairTarget) === ERR_NOT_IN_RANGE
+                ) {
+                    creep.moveTo(repairTarget, {
+                        visualizePathStyle: { stroke: "#ffffff" },
+                        reusePath: 20,
+                    });
+                }
             }
             return;
         }
 
         // When collecting energy, prioritize tombstones, dropped energy, containers, then sources
         if (creep.store.getFreeCapacity() > 0) {
+            // Check if miners are already spawned in this room
+            const existingMiners = Object.values(Game.creeps).filter(
+                (c) =>
+                    c.memory.role === "miner" &&
+                    c.memory.targetRoom === targetRoom,
+            );
+            const hasMiners = existingMiners.length > 0;
+
             // First check for tombstones (in case another builder/creep dies)
             const tombstones = creep.room.find(FIND_TOMBSTONES, {
                 filter: (tombstone) =>
@@ -304,6 +348,27 @@ var roleRemoteBuilder = {
                 }
             }
 
+            // If miners are spawned, just wait at containers instead of harvesting sources
+            if (hasMiners) {
+                // Wait for containers to fill up
+                const allContainers = creep.room.find(FIND_STRUCTURES, {
+                    filter: (s) =>
+                        s.structureType === STRUCTURE_CONTAINER &&
+                        s.store[RESOURCE_ENERGY] > 0,
+                });
+                if (allContainers.length > 0) {
+                    const target = creep.pos.findClosestByPath(allContainers);
+                    if (target && creep.pos.getRangeTo(target) > 1) {
+                        creep.moveTo(target, {
+                            visualizePathStyle: { stroke: "#ffaa00" },
+                            reusePath: 20,
+                        });
+                    }
+                }
+                return;
+            }
+
+            // If no miners, harvest from sources
             // If no nearby containers, check for nearby source (within range 10)
             const nearbySource = creep.pos.findInRange(
                 FIND_SOURCES_ACTIVE,

@@ -60,19 +60,30 @@ var roleRemoteRepairer = {
                 });
             }
 
-            // Priority 2: Damaged roads
+            // Priority 2: Damaged roads from the original path plan
             if (!target) {
-                const damagedRoads = creep.room.find(FIND_STRUCTURES, {
-                    filter: (structure) =>
-                        structure.structureType === STRUCTURE_ROAD &&
-                        structure.hits < structure.hitsMax,
-                });
+                const remoteRoomName = creep.memory.targetRoom;
+                const roadPlan =
+                    Memory.remoteRoadPlans &&
+                    Memory.remoteRoadPlans[remoteRoomName];
 
-                if (damagedRoads.length > 0) {
-                    // Pick one that's more damaged
-                    target = damagedRoads.reduce((lowest, road) => {
-                        return road.hits < lowest.hits ? road : lowest;
+                if (roadPlan && roadPlan.length > 0) {
+                    const damagedRoads = creep.room.find(FIND_STRUCTURES, {
+                        filter: (structure) =>
+                            structure.structureType === STRUCTURE_ROAD &&
+                            structure.hits < structure.hitsMax &&
+                            roadPlan.some(
+                                (pos) =>
+                                    pos.x === structure.pos.x &&
+                                    pos.y === structure.pos.y,
+                            ),
                     });
+
+                    if (damagedRoads.length > 0) {
+                        target = damagedRoads.reduce((lowest, road) => {
+                            return road.hits < lowest.hits ? road : lowest;
+                        });
+                    }
                 }
             }
 
