@@ -101,10 +101,12 @@ module.exports.loop = function () {
     }
 
     // Cache owned rooms and spawns every 100 ticks to save CPU
+    // But always maintain current room list for spawning
+    const ownedRooms = Object.values(Game.rooms).filter(
+        (room) => room.controller && room.controller.my,
+    );
+
     if (Game.time % 100 === 0) {
-        const ownedRooms = Object.values(Game.rooms).filter(
-            (room) => room.controller && room.controller.my,
-        );
         Memory.empire = Memory.empire || {};
         Memory.empire.roomData = {};
 
@@ -114,10 +116,7 @@ module.exports.loop = function () {
                 spawns: spawns.map((s) => s.id),
             };
         }
-        if (
-            Game.time % 100 === 0 &&
-            Object.keys(Memory.empire.roomData).length > 0
-        ) {
+        if (Object.keys(Memory.empire.roomData).length > 0) {
             console.log(
                 "Updated empire room cache:",
                 Object.keys(Memory.empire.roomData).join(", "),
@@ -125,10 +124,10 @@ module.exports.loop = function () {
         }
     }
 
-    // Use cached room/spawn data
+    // Use current rooms for spawning logic (don't rely on stale cache)
     Memory.empire = Memory.empire || {};
     const roomData = Memory.empire.roomData || {};
-    const ownedRoomNames = Object.keys(roomData);
+    const ownedRoomNames = ownedRooms.map((r) => r.name);
 
     // Assign roles, calculate needs, and spawn per room
     for (const roomName of ownedRoomNames) {

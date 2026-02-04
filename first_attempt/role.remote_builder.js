@@ -23,19 +23,52 @@ function getRoadPlanForSource(room, source) {
         return existing;
     }
 
-    const exits = room.find(FIND_EXIT);
-    if (exits.length === 0) {
+    // Find the main room spawn
+    const mainRoom = Object.values(Game.rooms).find(
+        (r) => r.controller && r.controller.my,
+    );
+    if (!mainRoom) {
         return null;
     }
 
-    const exitPos = source.pos.findClosestByRange(exits);
-    if (!exitPos) {
+    const spawns = mainRoom.find(FIND_MY_SPAWNS);
+    if (spawns.length === 0) {
         return null;
     }
 
+    const mainSpawn = spawns[0];
+
+    // Find which exit the spawn would use to reach this room
+    // by doing a multi-room pathfind from spawn to room center
+    const targetPos = new RoomPosition(25, 25, room.name);
+    const searchResult = PathFinder.search(
+        mainSpawn.pos,
+        { pos: targetPos, range: 1 },
+        { maxRooms: 10, plainCost: 2, swampCost: 10 },
+    );
+
+    if (searchResult.path.length === 0) {
+        return null;
+    }
+
+    // Find the exit pos used by this path
+    // It's the first step that crosses into the remote room
+    let entryExitPos = null;
+    for (const pos of searchResult.path) {
+        if (pos.roomName === room.name) {
+            entryExitPos = pos;
+            break;
+        }
+    }
+
+    if (!entryExitPos) {
+        return null;
+    }
+
+    // Now path from source to the entry point
     const result = PathFinder.search(
         source.pos,
-        { pos: exitPos, range: 0 },
+        { pos: entryExitPos, range: 0 },
         { maxRooms: 1, plainCost: 2, swampCost: 10 },
     );
 

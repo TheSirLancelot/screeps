@@ -5,6 +5,94 @@
 
 var config = require("config");
 
+// Remote creep body definitions
+const REMOTE_BODIES = {
+    reserver: {
+        body: [CLAIM, CLAIM, MOVE, MOVE],
+        cost: 1300,
+    },
+    attacker: {
+        body: [
+            ATTACK,
+            ATTACK,
+            ATTACK,
+            ATTACK,
+            ATTACK,
+            RANGED_ATTACK,
+            RANGED_ATTACK,
+            TOUGH,
+            TOUGH,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+        ],
+        cost: 1020,
+    },
+    builder: {
+        body: [
+            WORK,
+            WORK,
+            WORK,
+            CARRY,
+            CARRY,
+            CARRY,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+        ],
+        cost: 750,
+    },
+    miner: {
+        body: [WORK, WORK, WORK, WORK, WORK, CARRY, MOVE],
+        cost: 350,
+    },
+    hauler: {
+        body: [
+            CARRY,
+            CARRY,
+            CARRY,
+            CARRY,
+            CARRY,
+            CARRY,
+            CARRY,
+            CARRY,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+        ],
+        cost: 800,
+    },
+    repairer: {
+        body: [
+            WORK,
+            WORK,
+            WORK,
+            CARRY,
+            CARRY,
+            CARRY,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+            MOVE,
+        ],
+        cost: 750,
+    },
+};
+
 var remoteManager = {
     /**
      * Check if the main room has adequate creeps before spawning remote creeps
@@ -176,10 +264,8 @@ var remoteManager = {
 
         if (Game.time >= remotePathData.nextReserverTick) {
             const spawn = Object.values(Game.spawns).find((s) => !s.spawning);
-            const reserverBody = [CLAIM, CLAIM, MOVE, MOVE];
-            const reserverCost = 1300;
 
-            if (spawn && spawn.room.energyAvailable >= reserverCost) {
+            if (spawn && spawn.room.energyAvailable >= REMOTE_BODIES.reserver.cost) {
                 const name = `Reserver_${remoteRoomName}_${Game.time}`;
                 const result = spawn.spawnCreep(reserverBody, name, {
                     memory: {
@@ -232,29 +318,10 @@ var remoteManager = {
         }
 
         const spawn = Object.values(Game.spawns).find((s) => !s.spawning);
-        const attackerBody = [
-            ATTACK,
-            ATTACK,
-            ATTACK,
-            ATTACK,
-            ATTACK,
-            RANGED_ATTACK,
-            RANGED_ATTACK,
-            TOUGH,
-            TOUGH,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-        ];
-        const attackerCost = 1020;
 
-        if (spawn && spawn.room.energyAvailable >= attackerCost) {
+        if (spawn && spawn.room.energyAvailable >= REMOTE_BODIES.attacker.cost) {
             const name = `RemoteAttacker_${remoteRoomName}_${Game.time}`;
-            const result = spawn.spawnCreep(attackerBody, name, {
+            const result = spawn.spawnCreep(REMOTE_BODIES.attacker.body, name, {
                 memory: {
                     role: "attacker",
                     targetRoom: remoteRoomName,
@@ -298,12 +365,10 @@ var remoteManager = {
             );
 
             const spawn = Object.values(Game.spawns).find((s) => !s.spawning);
-            const reserverBody = [CLAIM, CLAIM, MOVE, MOVE];
-            const reserverCost = 1300;
 
-            if (spawn && spawn.room.energyAvailable >= reserverCost) {
+            if (spawn && spawn.room.energyAvailable >= REMOTE_BODIES.reserver.cost) {
                 const name = `Reserver_${remoteRoomName}_${Game.time}`;
-                const result = spawn.spawnCreep(reserverBody, name, {
+                const result = spawn.spawnCreep(REMOTE_BODIES.reserver.body, name, {
                     memory: {
                         role: "reserver",
                         targetRoom: remoteRoomName,
@@ -328,29 +393,10 @@ var remoteManager = {
         existingRemoteBuilders,
     ) {
         const spawn = Object.values(Game.spawns).find((s) => !s.spawning);
-        const builderBody = [
-            WORK,
-            WORK,
-            WORK,
-            WORK,
-            CARRY,
-            CARRY,
-            CARRY,
-            CARRY,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-            MOVE,
-        ];
-        const builderCost = 1200;
 
         if (
             spawn &&
-            spawn.room.energyAvailable >= builderCost &&
+            spawn.room.energyAvailable >= REMOTE_BODIES.builder.cost &&
             existingRemoteBuilders.length < remoteSources.length
         ) {
             const assignedSourceIds = existingRemoteBuilders
@@ -360,7 +406,7 @@ var remoteManager = {
                 (source) => !assignedSourceIds.includes(source.id),
             );
             const name = `RemoteBuilder_${remoteRoomName}_${Game.time}`;
-            const result = spawn.spawnCreep(builderBody, name, {
+            const result = spawn.spawnCreep(REMOTE_BODIES.builder.body, name, {
                 memory: {
                     role: "remote_builder",
                     targetRoom: remoteRoomName,
@@ -404,20 +450,10 @@ var remoteManager = {
                     const spawn = Object.values(Game.spawns).find(
                         (s) => !s.spawning,
                     );
-                    const minerBody = [
-                        WORK,
-                        WORK,
-                        WORK,
-                        WORK,
-                        WORK,
-                        CARRY,
-                        MOVE,
-                    ];
-                    const minerCost = 350;
 
-                    if (spawn && spawn.room.energyAvailable >= minerCost) {
+                    if (spawn && spawn.room.energyAvailable >= REMOTE_BODIES.miner.cost) {
                         const name = `RemoteMiner_${remoteRoomName}_${Game.time}`;
-                        const result = spawn.spawnCreep(minerBody, name, {
+                        const result = spawn.spawnCreep(REMOTE_BODIES.miner.body, name, {
                             memory: {
                                 role: "miner",
                                 targetRoom: remoteRoomName,
@@ -467,33 +503,10 @@ var remoteManager = {
                     const spawn = Object.values(Game.spawns).find(
                         (s) => !s.spawning,
                     );
-                    const haulerBody = [
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        CARRY,
-                        MOVE,
-                        MOVE,
-                        MOVE,
-                        MOVE,
-                        MOVE,
-                        MOVE,
-                        MOVE,
-                        MOVE,
-                        MOVE,
-                        MOVE,
-                    ];
-                    const haulerCost = 1000;
 
-                    if (spawn && spawn.room.energyAvailable >= haulerCost) {
+                    if (spawn && spawn.room.energyAvailable >= REMOTE_BODIES.hauler.cost) {
                         const name = `RemoteHauler_${remoteRoomName}_${Game.time}`;
-                        const result = spawn.spawnCreep(haulerBody, name, {
+                        const result = spawn.spawnCreep(REMOTE_BODIES.hauler.body, name, {
                             memory: {
                                 role: "remote_hauler",
                                 targetRoom: remoteRoomName,
@@ -527,29 +540,10 @@ var remoteManager = {
 
         if (existingRepairers.length === 0) {
             const spawn = Object.values(Game.spawns).find((s) => !s.spawning);
-            const repairerBody = [
-                WORK,
-                WORK,
-                WORK,
-                WORK,
-                CARRY,
-                CARRY,
-                CARRY,
-                CARRY,
-                MOVE,
-                MOVE,
-                MOVE,
-                MOVE,
-                MOVE,
-                MOVE,
-                MOVE,
-                MOVE,
-            ];
-            const repairerCost = 1200;
 
-            if (spawn && spawn.room.energyAvailable >= repairerCost) {
+            if (spawn && spawn.room.energyAvailable >= REMOTE_BODIES.repairer.cost) {
                 const name = `RemoteRepairer_${remoteRoomName}_${Game.time}`;
-                const result = spawn.spawnCreep(repairerBody, name, {
+                const result = spawn.spawnCreep(REMOTE_BODIES.repairer.body, name, {
                     memory: {
                         role: "remote_repairer",
                         targetRoom: remoteRoomName,
@@ -567,5 +561,8 @@ var remoteManager = {
         }
     },
 };
+
+// Export body definitions for use in spawner.js
+remoteManager.REMOTE_BODIES = REMOTE_BODIES;
 
 module.exports = remoteManager;

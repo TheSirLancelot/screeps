@@ -1,76 +1,10 @@
 var config = require("config");
 var creepCalculator = require("creep.calculator");
+var remoteManager = require("remote.manager");
 
 const MIN_CREEPS = config.MIN_CREEPS;
 const CRITICAL_CREEPS = config.CRITICAL_CREEPS;
 const MIN_HAULERS = config.MIN_HAULERS;
-
-function buildBodyForEnergy(room) {
-    const energyAvailable = room.energyAvailable;
-    const partsPerPair = 4;
-    const maxPairs = Math.floor(50 / partsPerPair);
-    const pairCost =
-        BODYPART_COST[WORK] + BODYPART_COST[CARRY] + 2 * BODYPART_COST[MOVE];
-    const pairCount = Math.min(
-        Math.floor(energyAvailable / pairCost),
-        maxPairs,
-    );
-    let remainingEnergy = energyAvailable - pairCount * pairCost;
-
-    const body = [];
-    if (pairCount === 0) {
-        body.push(WORK, CARRY, MOVE);
-        console.log(
-            "Fallback body used (insufficient energy for pair):",
-            JSON.stringify(body),
-            "energy:",
-            energyAvailable,
-        );
-    }
-    for (let i = 0; i < pairCount; i += 1) {
-        body.push(WORK);
-    }
-    for (let i = 0; i < pairCount; i += 1) {
-        body.push(CARRY);
-    }
-    for (let i = 0; i < pairCount * 2; i += 1) {
-        body.push(MOVE);
-    }
-    const maxExtraWork = 50 - body.length;
-    const extraWork = Math.min(
-        Math.floor(remainingEnergy / BODYPART_COST[WORK]),
-        maxExtraWork,
-    );
-    for (let i = 0; i < extraWork; i += 1) {
-        body.push(WORK);
-    }
-    remainingEnergy -= extraWork * BODYPART_COST[WORK];
-
-    const baseNonMoveCount = pairCount * 2;
-    const moveCount = body.filter((part) => part === MOVE).length;
-    if (moveCount < baseNonMoveCount) {
-        const missingMoves = Math.min(
-            baseNonMoveCount - moveCount,
-            50 - body.length,
-        );
-        for (let i = 0; i < missingMoves; i += 1) {
-            body.push(MOVE);
-        }
-        console.log(
-            "Adjusted body to maintain MOVE ratio:",
-            JSON.stringify(body),
-        );
-    } else {
-        console.log(
-            "Calculated body:",
-            JSON.stringify(body),
-            "energy:",
-            energyAvailable,
-        );
-    }
-
-    return body;
-}
 
 function buildMinerBody() {
     // Efficient dedicated miner: 5 WORK yields 10 energy/tick (exactly drains a source in ~300 ticks)
@@ -117,62 +51,26 @@ function buildHaulerBody(room) {
 
 function buildGenericCreepBody(room) {
     // Generic body for builder/upgrader/repairer - smaller bodies that spawn faster
-    // Target: 3 WORK + 2 CARRY + 2 MOVE = ~350 energy
+    // Fixed: 3 WORK + 2 CARRY + 2 MOVE = 350 energy
     // Prioritize spawning frequency over individual creep size
-    const energyAvailable = room.energyAvailable;
-
-    // Core body: 3 WORK + 2 CARRY + 2 MOVE = 350 energy
     const body = [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE];
-
-    // If we have extra energy, add pairs of WORK + MOVE (not CARRY, work is the bottleneck)
-    let remainingEnergy = energyAvailable - 350;
-    while (
-        remainingEnergy >= BODYPART_COST[WORK] + BODYPART_COST[MOVE] &&
-        body.length < 50
-    ) {
-        body.push(WORK);
-        body.push(MOVE);
-        remainingEnergy -= BODYPART_COST[WORK] + BODYPART_COST[MOVE];
-    }
-
-    // If still room and energy, add one more MOVE for every non-MOVE part (mobility)
-    const nonMoveParts = body.filter((p) => p !== MOVE).length;
-    const moveParts = body.filter((p) => p === MOVE).length;
-    if (
-        moveParts < nonMoveParts &&
-        remainingEnergy >= BODYPART_COST[MOVE] &&
-        body.length < 50
-    ) {
-        body.push(MOVE);
-    }
-
     return body;
 }
 
 var spawner = {
     /**
-     * Spawns dedicated miners first, then generic creeps until the calculated minimum is reached
-     * @param {number} creepCount - Current number of creeps
-     * @param {number} calculatedMin - Dynamically calculated minimum (uses MIN_CREEPS as floor)
-     * @param {Room} room - Room to spawn for
-     * @param {StructureSpawn} spawn - Spawn to use for this room
+     * Build a spawn queue based on current room state
+     * Queue is rebuilt each tick and auto-cleans stale entries
      */
-    run: function (creepCount, calculatedMin, room, spawn) {
-        const spawns = room.find(FIND_MY_SPAWNS);
-        const activeSpawn =
-            spawn || spawns.find((s) => !s.spawning) || spawns[0];
-        if (!activeSpawn || activeSpawn.spawning) {
-            return;
-        }
-        const energyAvailable = room.energyAvailable;
-        const energyCapacity = room.energyCapacityAvailable;
+    buildSpawnQueue: function (creepCount, calculatedMin, room) {
+        const queue = [];
+        const config = require("config");
 
-        // Priority 1: Spawn dedicated miners (1 per source)
-        const minerBody = buildMinerBody();
+        // Priority 1: Miners (1 per source)
         const sources = room.find(FIND_SOURCES);
         const minersBySource = {};
-        for (let i = 0; i < sources.length; i += 1) {
-            minersBySource[sources[i].id] = 0;
+        for (const source of sources) {
+            minersBySource[source.id] = 0;
         }
         for (const name in Game.creeps) {
             const creep = Game.creeps[name];
@@ -184,109 +82,182 @@ var spawner = {
             }
         }
 
-        const minerCost = minerBody.reduce(
-            (sum, part) => sum + BODYPART_COST[part],
-            0,
-        );
-        if (energyAvailable >= minerCost) {
-            for (let i = 0; i < sources.length; i += 1) {
-                const source = sources[i];
-                if ((minersBySource[source.id] || 0) === 0) {
-                    const newName = "Miner" + Game.time;
-                    activeSpawn.spawnCreep(minerBody, newName, {
-                        memory: {
-                            role: "miner",
-                            sourceId: source.id,
-                            fixedRole: true,
-                        },
-                    });
-                    return;
-                }
-            }
-        }
-
-        // Priority 2: Spawn dedicated haulers (until MIN_HAULERS met)
-        // Count ONLY dedicated haulers (fixedRole: true), not generic creeps reassigned to hauler
-        const haulerBody = buildHaulerBody(room);
-        const dedicatedHaulers = {};
-        for (const name in Game.creeps) {
-            const creep = Game.creeps[name];
-            if (
-                creep.room === room &&
-                creep.memory.role === "hauler" &&
-                creep.memory.fixedRole === true
-            ) {
-                dedicatedHaulers[name] = creep;
-            }
-        }
-        const dedicatedHaulerCount = Object.keys(dedicatedHaulers).length;
-
-        const haulerCost = haulerBody.reduce(
-            (sum, part) => sum + BODYPART_COST[part],
-            0,
-        );
-        if (
-            dedicatedHaulerCount < MIN_HAULERS &&
-            energyAvailable >= haulerCost
-        ) {
-            const criticallyLow = creepCount < CRITICAL_CREEPS;
-            const shouldWait =
-                !criticallyLow && energyAvailable < energyCapacity;
-
-            if (!shouldWait) {
-                const newName = "Hauler" + Game.time;
-                console.log(
-                    "Spawning hauler:",
-                    newName,
-                    "body:",
-                    JSON.stringify(haulerBody),
-                );
-                activeSpawn.spawnCreep(haulerBody, newName, {
-                    memory: {
-                        role: "hauler",
-                        fixedRole: true,
+        for (const source of sources) {
+            if ((minersBySource[source.id] || 0) === 0) {
+                queue.push({
+                    priority: 1,
+                    type: "miner",
+                    sourceId: source.id,
+                    validate: () => {
+                        // Re-check: still no miner for this source?
+                        const current = Object.values(Game.creeps).filter(
+                            (c) =>
+                                c.room.name === room.name &&
+                                c.memory.role === "miner" &&
+                                c.memory.sourceId === source.id,
+                        ).length;
+                        return current === 0;
                     },
+                    build: () => buildMinerBody(),
                 });
-                return;
             }
         }
 
-        // Priority 3: Spawn generic creeps for builder/upgrader/repairer until creep minimum met
-        const effectiveMin = Math.max(calculatedMin, MIN_CREEPS);
-        if (creepCount < effectiveMin) {
-            const criticallyLow = creepCount < CRITICAL_CREEPS;
+        // Priority 2: Haulers (until MIN_HAULERS met)
+        const dedicatedHaulers = Object.values(Game.creeps).filter(
+            (c) =>
+                c.room.name === room.name &&
+                c.memory.role === "hauler" &&
+                c.memory.fixedRole === true,
+        ).length;
 
-            // If not critically low, wait until energy is full before spawning
-            if (!criticallyLow && energyAvailable < energyCapacity) {
-                // waiting for full energy to build stronger creeps
-                return;
-            }
-
-            // Build appropriate body for available energy
-            let body;
-            if (energyAvailable >= energyCapacity) {
-                // Use full energy if available
-                body = buildGenericCreepBody(room);
-            } else if (criticallyLow) {
-                // If critically low, spawn minimal/better depending on energy
-                body =
-                    energyAvailable >= 150
-                        ? buildGenericCreepBody(room)
-                        : [WORK, CARRY, MOVE];
-            } else {
-                // This branch is unlikely because of the early return above,
-                // but fall back to a basic creep to be safe.
-                body = [WORK, CARRY, MOVE];
-            }
-
-            if (body) {
-                const newName = "Creep" + Game.time;
-                // Spawn as builder initially; role manager will reassign based on room needs
-                // (builder/upgrader/repairer/hauler). Dedicated haulers handle pure hauling.
-                activeSpawn.spawnCreep(body, newName, {
-                    memory: { role: "builder" },
+        const minHaulers = config.MIN_HAULERS || 2;
+        if (dedicatedHaulers < minHaulers) {
+            for (let i = dedicatedHaulers; i < minHaulers; i += 1) {
+                queue.push({
+                    priority: 2,
+                    type: "hauler",
+                    validate: () => {
+                        const current = Object.values(Game.creeps).filter(
+                            (c) =>
+                                c.room.name === room.name &&
+                                c.memory.role === "hauler" &&
+                                c.memory.fixedRole === true,
+                        ).length;
+                        return current < minHaulers;
+                    },
+                    build: () => buildHaulerBody(room),
                 });
             }
+        }
+
+        // Priority 3: Generic creeps (until creep minimum met)
+        const effectiveMin = Math.max(calculatedMin, config.MIN_CREEPS);
+        if (creepCount < effectiveMin) {
+            for (let i = creepCount; i < effectiveMin; i += 1) {
+                queue.push({
+                    priority: 3,
+                    type: "generic",
+                    validate: () => {
+                        const current = room
+                            .find(FIND_MY_CREEPS)
+                            .filter((c) => !c.memory.targetRoom).length;
+                        return current < effectiveMin;
+                    },
+                    build: () => buildGenericCreepBody(room),
+                });
+            }
+        }
+
+        return queue;
+    },
+
+    /**
+     * Spawns creeps based on priority queue
+     * @param {number} creepCount - Current number of creeps
+     * @param {number} calculatedMin - Dynamically calculated minimum
+     * @param {Room} room - Room to spawn for
+     * @param {StructureSpawn} spawn - Spawn to use for this room
+     */
+    run: function (creepCount, calculatedMin, room, spawn) {
+        const spawns = room.find(FIND_MY_SPAWNS);
+        const activeSpawn =
+            spawn || spawns.find((s) => !s.spawning) || spawns[0];
+        if (!activeSpawn || activeSpawn.spawning) {
+            return;
+        }
+
+        const energyAvailable = room.energyAvailable;
+        const energyCapacity = room.energyCapacityAvailable;
+        const config = require("config");
+        const CRITICAL_CREEPS = config.CRITICAL_CREEPS;
+
+        // Build queue
+        const queue = this.buildSpawnQueue(creepCount, calculatedMin, room);
+
+        // Store queue in memory for inspection
+        Memory.spawnQueues = Memory.spawnQueues || {};
+        Memory.spawnQueues[room.name] = queue.map((item) => ({
+            priority: item.priority,
+            type: item.type,
+            sourceId: item.sourceId || null,
+        }));
+
+        // Process queue
+        for (const item of queue) {
+            // Validate entry (might be stale)
+            if (!item.validate()) {
+                continue;
+            }
+
+            // Build body
+            const body = item.build();
+            const cost = body.reduce(
+                (sum, part) => sum + BODYPART_COST[part],
+                0,
+            );
+
+            // Check if we have enough energy
+            if (energyAvailable < cost) {
+                continue; // Skip to next item
+            }
+
+            // Spawn it!
+            let memoryObj = { fixedRole: true };
+
+            if (item.type === "miner") {
+                memoryObj.role = "miner";
+                memoryObj.sourceId = item.sourceId;
+            } else if (item.type === "hauler") {
+                memoryObj.role = "hauler";
+            } else if (item.type === "generic") {
+                memoryObj.role = "builder"; // Role manager will reassign
+                memoryObj.fixedRole = false; // Allow role reassignment
+            } else if (item.type === "reserver") {
+                memoryObj.role = "reserver";
+                memoryObj.targetRoom = item.targetRoom;
+            } else if (item.type === "attacker") {
+                memoryObj.role = "attacker";
+                memoryObj.targetRoom = item.targetRoom;
+            } else if (item.type === "remote_builder") {
+                memoryObj.role = "remote_builder";
+                memoryObj.targetRoom = item.targetRoom;
+                memoryObj.assignedSourceId = item.sourceId;
+            } else if (item.type === "remote_miner") {
+                memoryObj.role = "miner";
+                memoryObj.targetRoom = item.targetRoom;
+                memoryObj.assignedSourceId = item.sourceId;
+            } else if (item.type === "remote_hauler") {
+                memoryObj.role = "remote_hauler";
+                memoryObj.targetRoom = item.targetRoom;
+                memoryObj.homeRoom = room.name;
+                memoryObj.assignedMinerId = item.minerId;
+            } else if (item.type === "remote_repairer") {
+                memoryObj.role = "remote_repairer";
+                memoryObj.targetRoom = item.targetRoom;
+            }
+
+            const newName =
+                item.type.charAt(0).toUpperCase() +
+                item.type.slice(1) +
+                Game.time;
+            const result = activeSpawn.spawnCreep(body, newName, {
+                memory: memoryObj,
+            });
+
+            if (result === OK) {
+                if (item.type !== "generic" || Game.time % 50 === 0) {
+                    console.log(
+                        `Spawning ${item.type}: ${newName} (cost: ${cost}E)`,
+                    );
+                }
+            } else {
+                console.log(
+                    `ERROR spawning ${item.type}: ${newName} - error code ${result}`,
+                );
+            }
+
+            return; // Spawn one per tick
         }
     },
 };
