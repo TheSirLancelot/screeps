@@ -149,10 +149,73 @@ var roleManager = {
     },
 
     /**
+     * Assigns dedicated haulers to miners in a room
+     * Deterministically pairs unassigned haulers with miners, one-to-one
+     * @param {Room} room - The room to manage creeps in
+     */
+    assignHaulersToMiners: function (room) {
+        // Find all miners with fixedRole: true
+        const miners = Object.values(Game.creeps).filter(
+            (c) =>
+                c.room === room &&
+                c.memory.role === "miner" &&
+                c.memory.fixedRole === true,
+        );
+
+        // Find all dedicated haulers with fixedRole: true
+        const haulers = Object.values(Game.creeps).filter(
+            (c) =>
+                c.room === room &&
+                c.memory.role === "hauler" &&
+                c.memory.fixedRole === true,
+        );
+
+        // Clear dead miner assignments from haulers
+        for (const hauler of haulers) {
+            if (hauler.memory.assignedMinerId) {
+                const miner = Game.getObjectById(hauler.memory.assignedMinerId);
+                if (!miner || miner.room !== room) {
+                    hauler.memory.assignedMinerId = null;
+                    hauler.memory.assignedContainerId = null;
+                }
+            }
+        }
+
+        // Sort miners and haulers by id for deterministic pairing
+        miners.sort((a, b) => (a.id < b.id ? -1 : 1));
+        haulers.sort((a, b) => (a.id < b.id ? -1 : 1));
+
+        // Create a set of already assigned miner ids
+        const assignedMinerIds = new Set();
+        for (const hauler of haulers) {
+            if (hauler.memory.assignedMinerId) {
+                assignedMinerIds.add(hauler.memory.assignedMinerId);
+            }
+        }
+
+        // Pair unassigned haulers with unassigned miners
+        for (const hauler of haulers) {
+            if (!hauler.memory.assignedMinerId) {
+                // Find first unassigned miner
+                for (const miner of miners) {
+                    if (!assignedMinerIds.has(miner.id)) {
+                        hauler.memory.assignedMinerId = miner.id;
+                        assignedMinerIds.add(miner.id);
+                        break;
+                    }
+                }
+            }
+        }
+    },
+
+    /**
      * Evaluates all creeps in a room and assigns roles
      * @param {Room} room - The room to manage creeps in
      */
     manageAllCreeps: function (room) {
+        // Assign haulers to miners first (deterministically, once per tick)
+        this.assignHaulersToMiners(room);
+
         // Compute role stats once and pass into per-creep evaluation to avoid repeated work
         const stats = this.getRoleStats(room);
         for (var name in Game.creeps) {
