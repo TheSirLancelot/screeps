@@ -6,6 +6,7 @@ var roleMiner = require("role.miner");
 var roleReserver = require("role.reserver");
 var roleRemoteBuilder = require("role.remote_builder");
 var roleRemoteRepairer = require("role.remote_repairer");
+var roleRemoteHauler = require("role.remote_hauler");
 var spawner = require("spawner");
 var roleManager = require("role.manager");
 var creepUtils = require("creep.utils");
@@ -22,6 +23,7 @@ var roleHandlers = {
     reserver: roleReserver,
     remote_builder: roleRemoteBuilder,
     remote_repairer: roleRemoteRepairer,
+    remote_hauler: roleRemoteHauler,
 };
 
 module.exports.loop = function () {
@@ -313,7 +315,7 @@ module.exports.loop = function () {
                 // All roads built, check if we need haulers
                 const existingRemoteHaulers = Object.values(Game.creeps).filter(
                     (c) =>
-                        c.memory.role === "hauler" &&
+                        c.memory.role === "remote_hauler" &&
                         c.memory.targetRoom === remoteRoomName &&
                         c.memory.fixedRole === true,
                 );
@@ -373,7 +375,7 @@ module.exports.loop = function () {
                                     name,
                                     {
                                         memory: {
-                                            role: "hauler",
+                                            role: "remote_hauler",
                                             targetRoom: remoteRoomName,
                                             homeRoom: spawn.room.name,
                                             assignedMinerId: assignedMiner.id,
