@@ -11,10 +11,11 @@ function buildMinerBody() {
     return [WORK, WORK, WORK, WORK, WORK, CARRY, MOVE];
 }
 
-function buildHaulerBody(room) {
+function buildHaulerBody(room, creepCount) {
     // Haulers with 10 CARRY + 10 MOVE (1:1 ratio) = 1000 energy
     // This allows frequent spawning and keeps miners from backing up
     const energyAvailable = room.energyAvailable;
+    const config = require("config");
 
     // Target body: 10 CARRY + 10 MOVE
     const targetCarry = 10;
@@ -31,8 +32,9 @@ function buildHaulerBody(room) {
             body.push(MOVE);
         }
         return body;
-    } else if (energyAvailable >= 100) {
-        // Fallback: scale down proportionally
+    } else if (creepCount < config.MIN_CREEPS && energyAvailable >= 400) {
+        // Only scale down if we're below MIN_CREEPS
+        // Minimum viable hauler: 4 CARRY + 4 MOVE (400E)
         const carryMovePairCost = BODYPART_COST[CARRY] + BODYPART_COST[MOVE]; // 100
         const pairCount = Math.floor(energyAvailable / carryMovePairCost);
         const body = [];
@@ -44,17 +46,30 @@ function buildHaulerBody(room) {
         }
         return body;
     } else {
-        // Minimal fallback
-        return [CARRY, MOVE];
+        // Not enough energy or above MIN_CREEPS - wait for full energy
+        return null;
     }
 }
 
-function buildGenericCreepBody(room) {
+function buildGenericCreepBody(room, creepCount) {
     // Generic body for builder/upgrader/repairer - smaller bodies that spawn faster
     // Fixed: 3 WORK + 2 CARRY + 2 MOVE = 350 energy
-    // Prioritize spawning frequency over individual creep size
-    const body = [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE];
-    return body;
+    const targetBody = [WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE];
+    const targetCost = 350;
+    const config = require("config");
+
+    const energyAvailable = room.energyAvailable;
+
+    if (energyAvailable >= targetCost) {
+        return targetBody;
+    } else if (creepCount < config.MIN_CREEPS && energyAvailable >= 200) {
+        // Only spawn smaller body if below MIN_CREEPS (emergency)
+        // Minimal: 1 WORK + 1 CARRY + 1 MOVE = 200E
+        return [WORK, CARRY, MOVE];
+    } else {
+        // Wait for full energy
+        return null;
+    }
 }
 
 var spawner = {
@@ -126,7 +141,7 @@ var spawner = {
                         ).length;
                         return current < minHaulers;
                     },
-                    build: () => buildHaulerBody(room),
+                    build: () => buildHaulerBody(room, creepCount),
                 });
             }
         }
@@ -144,7 +159,7 @@ var spawner = {
                             .filter((c) => !c.memory.targetRoom).length;
                         return current < effectiveMin;
                     },
-                    build: () => buildGenericCreepBody(room),
+                    build: () => buildGenericCreepBody(room, creepCount),
                 });
             }
         }
@@ -172,6 +187,29 @@ var spawner = {
         const config = require("config");
         const CRITICAL_CREEPS = config.CRITICAL_CREEPS;
 
+        // Emergency bootstrap: if critically low on creeps, spawn a 300E worker ASAP
+        if (creepCount < CRITICAL_CREEPS && energyAvailable >= 300) {
+            const emergencyBody = [WORK, WORK, CARRY, MOVE]; // 300 energy
+            const emergencyName = `Emergency${Game.time}`;
+            const result = activeSpawn.spawnCreep(
+                emergencyBody,
+                emergencyName,
+                {
+                    memory: {
+                        role: "harvester",
+                        fixedRole: true,
+                        emergency: true,
+                    },
+                },
+            );
+            if (result === OK) {
+                console.log(
+                    `Spawning emergency creep: ${emergencyName} (cost: 300E)`,
+                );
+                return; // Spawn one per tick
+            }
+        }
+
         // Build queue
         const queue = this.buildSpawnQueue(creepCount, calculatedMin, room);
 
@@ -192,6 +230,12 @@ var spawner = {
 
             // Build body
             const body = item.build();
+
+            // Skip if body builder returned null (not enough energy)
+            if (!body || body.length === 0) {
+                continue;
+            }
+
             const cost = body.reduce(
                 (sum, part) => sum + BODYPART_COST[part],
                 0,
