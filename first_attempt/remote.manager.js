@@ -6,6 +6,17 @@
 var config = require("config");
 
 // Remote creep body definitions
+const roomCounts = Memory.remoteRooms.map((roomName) => {
+    const creepsForRoom = Object.values(Game.creeps).filter(
+        (c) => c.memory.targetRoom === roomName,
+    );
+    return {
+        name: roomName,
+        creepCount: creepsForRoom.length,
+    };
+});
+roomCounts.sort((a, b) => a.creepCount - b.creepCount);
+
 const REMOTE_BODIES = {
     reserver: {
         body: [CLAIM, CLAIM, MOVE, MOVE],
@@ -156,9 +167,20 @@ var remoteManager = {
         const queue = [];
         Memory.remoteRooms = Memory.remoteRooms || [];
 
+        const roomCounts = Memory.remoteRooms.map((roomName) => {
+            const creepsForRoom = Object.values(Game.creeps).filter(
+                (c) => c.memory.targetRoom === roomName,
+            );
+            return {
+                name: roomName,
+                creepCount: creepsForRoom.length,
+            };
+        });
+        roomCounts.sort((a, b) => a.creepCount - b.creepCount);
+
         const reservationThreshold = config.REMOTE_RESERVE_THRESHOLD || 500;
 
-        for (const roomName of Memory.remoteRooms) {
+        for (const { name: roomName } of roomCounts) {
             const remoteRoom = Game.rooms[roomName];
             const existingReserver = Object.values(Game.creeps).find(
                 (c) =>
@@ -208,24 +230,38 @@ var remoteManager = {
             );
 
             // Priority 1: Reserver (only when reservation is low or timer allows)
-            if (!existingReserver && canSpawnReserver) {
-                queue.push({
-                    priority: 1,
-                    type: "reserver",
-                    targetRoom: roomName,
-                    validate: () => {
-                        const current = Object.values(Game.creeps).find(
-                            (c) =>
-                                c.memory.role === "reserver" &&
-                                c.memory.targetRoom === roomName,
-                        );
-                        return !current;
-                    },
-                });
+            if (canSpawnReserver) {
+                const queuedReserver = queue.find(
+                    (q) => q.type === "reserver" && q.targetRoom === roomName,
+                );
+                if (!existingReserver && !queuedReserver) {
+                    queue.push({
+                        priority: 1,
+                        type: "reserver",
+                        targetRoom: roomName,
+                        validate: () => {
+                            const current = Object.values(Game.creeps).find(
+                                (c) =>
+                                    c.memory.role === "reserver" &&
+                                    c.memory.targetRoom === roomName,
+                            );
+                            return !current;
+                        },
+                    });
+                }
             }
 
             // Only proceed if room has vision
             if (remoteRoom && remoteRoom.controller) {
+                const firstSpawn = Object.values(Game.spawns)[0];
+                const myUsername =
+                    firstSpawn && firstSpawn.owner
+                        ? firstSpawn.owner.username
+                        : null;
+                const hasMyReservation =
+                    remoteRoom.controller.reservation &&
+                    myUsername &&
+                    remoteRoom.controller.reservation.username === myUsername;
                 const sources = remoteRoom.find(FIND_SOURCES);
                 const constructionSites = remoteRoom.find(
                     FIND_CONSTRUCTION_SITES,
@@ -234,153 +270,176 @@ var remoteManager = {
                     (s) => s.structureType === STRUCTURE_ROAD,
                 );
 
-                // Priority 2: Remote builders (build containers and roads)
-                if (
-                    constructionSites.length > 0 ||
-                    existingBuilders.length === 0
-                ) {
-                    // Spawn 1 builder per source for faster construction
-                    const neededBuilders = sources.length;
-                    const queuedBuilders = queue.filter(
-                        (q) =>
-                            q.type === "remote_builder" &&
-                            q.targetRoom === roomName,
-                    ).length;
-                    for (
-                        let i = existingBuilders.length + queuedBuilders;
-                        i < neededBuilders;
-                        i++
-                    ) {
-                        queue.push({
-                            priority: 2,
-                            type: "remote_builder",
-                            targetRoom: roomName,
-                            validate: () => {
-                                const builders = Object.values(
-                                    Game.creeps,
-                                ).filter(
-                                    (c) =>
-                                        c.memory.role === "remote_builder" &&
-                                        c.memory.targetRoom === roomName,
-                                );
-                                return builders.length < neededBuilders;
+                if (hasMyReservation) {
+                    const containersBuilt = sources.filter((source) => {
+                        const containers = source.pos.findInRange(
+                            FIND_STRUCTURES,
+                            1,
+                            {
+                                filter: (s) =>
+                                    s.structureType === STRUCTURE_CONTAINER,
                             },
-                        });
-                    }
-                }
+                        );
+                        return containers.length > 0;
+                    }).length;
 
-                // Priority 3: Remote miners (one per source with container)
-                for (const source of sources) {
-                    // Check if source has a container (built or under construction)
-                    const containers = source.pos.findInRange(
-                        FIND_STRUCTURES,
-                        1,
-                        {
-                            filter: (s) =>
-                                s.structureType === STRUCTURE_CONTAINER,
-                        },
-                    );
-                    const containerSites = source.pos.findInRange(
-                        FIND_CONSTRUCTION_SITES,
-                        1,
-                        {
-                            filter: (s) =>
-                                s.structureType === STRUCTURE_CONTAINER,
-                        },
-                    );
-
-                    // Only spawn miner if container exists or is being built
-                    if (containers.length > 0 || containerSites.length > 0) {
-                        const minersForSource = Object.values(
-                            Game.creeps,
-                        ).filter(
-                            (c) =>
-                                c.memory.role === "miner" &&
-                                c.memory.targetRoom === roomName &&
-                                c.memory.assignedSourceId === source.id,
+                    // Priority 2/3: Remote builders (build containers and roads)
+                    if (
+                        constructionSites.length > 0 ||
+                        existingBuilders.length === 0
+                    ) {
+                        // Spawn 1 builder per source for faster construction
+                        const neededBuilders = sources.length;
+                        const queuedBuilders = queue.filter(
+                            (q) =>
+                                q.type === "remote_builder" &&
+                                q.targetRoom === roomName,
                         ).length;
-
-                        if (minersForSource === 0) {
+                        for (
+                            let i = existingBuilders.length + queuedBuilders;
+                            i < neededBuilders;
+                            i++
+                        ) {
+                            const builderPriority = containersBuilt > 0 ? 3 : 2;
                             queue.push({
-                                priority: 3,
-                                type: "remote_miner",
+                                priority: builderPriority,
+                                type: "remote_builder",
                                 targetRoom: roomName,
-                                sourceId: source.id,
+                                validate: () => {
+                                    const builders = Object.values(
+                                        Game.creeps,
+                                    ).filter(
+                                        (c) =>
+                                            c.memory.role ===
+                                                "remote_builder" &&
+                                            c.memory.targetRoom === roomName,
+                                    );
+                                    return builders.length < neededBuilders;
+                                },
+                            });
+                        }
+                    }
+
+                    // Priority 2: Remote repairers (keep structures healthy once containers are built)
+                    if (containersBuilt > 0) {
+                        const neededRepairers = 1;
+                        const queuedRepairers = queue.filter(
+                            (q) =>
+                                q.type === "remote_repairer" &&
+                                q.targetRoom === roomName,
+                        ).length;
+                        for (
+                            let i = existingRepairers.length + queuedRepairers;
+                            i < neededRepairers;
+                            i++
+                        ) {
+                            queue.push({
+                                priority: 2,
+                                type: "remote_repairer",
+                                targetRoom: roomName,
                                 validate: () => {
                                     const current = Object.values(
                                         Game.creeps,
                                     ).filter(
                                         (c) =>
-                                            c.memory.role === "miner" &&
-                                            c.memory.targetRoom === roomName &&
-                                            c.memory.assignedSourceId ===
-                                                source.id,
+                                            c.memory.role ===
+                                                "remote_repairer" &&
+                                            c.memory.targetRoom === roomName,
                                     ).length;
-                                    return current === 0;
+                                    return current < neededRepairers;
                                 },
                             });
                         }
                     }
-                }
 
-                // Priority 4: Remote haulers (spawn when containers are built)
-                const containersBuilt = sources.filter((source) => {
-                    const containers = source.pos.findInRange(
-                        FIND_STRUCTURES,
-                        1,
-                        {
-                            filter: (s) =>
-                                s.structureType === STRUCTURE_CONTAINER,
-                        },
-                    );
-                    return containers.length > 0;
-                }).length;
-
-                if (containersBuilt > 0) {
-                    const neededHaulers = Math.max(1, containersBuilt);
-                    const queuedHaulers = queue.filter(
-                        (q) =>
-                            q.type === "remote_hauler" &&
-                            q.targetRoom === roomName,
-                    ).length;
-                    for (
-                        let i = existingHaulers.length + queuedHaulers;
-                        i < neededHaulers;
-                        i++
-                    ) {
-                        queue.push({
-                            priority: 4,
-                            type: "remote_hauler",
-                            targetRoom: roomName,
-                            validate: () => {
-                                const haulers = Object.values(
-                                    Game.creeps,
-                                ).filter(
-                                    (c) =>
-                                        c.memory.role === "remote_hauler" &&
-                                        c.memory.targetRoom === roomName,
-                                );
-                                return haulers.length < neededHaulers;
+                    // Priority 4: Remote miners (one per source with container)
+                    for (const source of sources) {
+                        // Check if source has a container (built or under construction)
+                        const containers = source.pos.findInRange(
+                            FIND_STRUCTURES,
+                            1,
+                            {
+                                filter: (s) =>
+                                    s.structureType === STRUCTURE_CONTAINER,
                             },
-                        });
-                    }
-                }
+                        );
+                        const containerSites = source.pos.findInRange(
+                            FIND_CONSTRUCTION_SITES,
+                            1,
+                            {
+                                filter: (s) =>
+                                    s.structureType === STRUCTURE_CONTAINER,
+                            },
+                        );
 
-                // Priority 5: Remote repairers (keep structures healthy, spawn after containers built)
-                if (containersBuilt > 0 && existingRepairers.length === 0) {
-                    queue.push({
-                        priority: 5,
-                        type: "remote_repairer",
-                        targetRoom: roomName,
-                        validate: () => {
-                            const current = Object.values(Game.creeps).find(
+                        // Only spawn miner if container exists or is being built
+                        if (
+                            containers.length > 0 ||
+                            containerSites.length > 0
+                        ) {
+                            const minersForSource = Object.values(
+                                Game.creeps,
+                            ).filter(
                                 (c) =>
-                                    c.memory.role === "remote_repairer" &&
-                                    c.memory.targetRoom === roomName,
-                            );
-                            return !current;
-                        },
-                    });
+                                    c.memory.role === "miner" &&
+                                    c.memory.targetRoom === roomName &&
+                                    c.memory.assignedSourceId === source.id,
+                            ).length;
+
+                            if (minersForSource === 0) {
+                                queue.push({
+                                    priority: 4,
+                                    type: "remote_miner",
+                                    targetRoom: roomName,
+                                    sourceId: source.id,
+                                    validate: () => {
+                                        const current = Object.values(
+                                            Game.creeps,
+                                        ).filter(
+                                            (c) =>
+                                                c.memory.role === "miner" &&
+                                                c.memory.targetRoom ===
+                                                    roomName &&
+                                                c.memory.assignedSourceId ===
+                                                    source.id,
+                                        ).length;
+                                        return current === 0;
+                                    },
+                                });
+                            }
+                        }
+                    }
+
+                    // Priority 5: Remote haulers (spawn when containers are built)
+                    if (containersBuilt > 0) {
+                        const neededHaulers = Math.max(1, containersBuilt);
+                        const queuedHaulers = queue.filter(
+                            (q) =>
+                                q.type === "remote_hauler" &&
+                                q.targetRoom === roomName,
+                        ).length;
+                        for (
+                            let i = existingHaulers.length + queuedHaulers;
+                            i < neededHaulers;
+                            i++
+                        ) {
+                            queue.push({
+                                priority: 5,
+                                type: "remote_hauler",
+                                targetRoom: roomName,
+                                validate: () => {
+                                    const haulers = Object.values(
+                                        Game.creeps,
+                                    ).filter(
+                                        (c) =>
+                                            c.memory.role === "remote_hauler" &&
+                                            c.memory.targetRoom === roomName,
+                                    );
+                                    return haulers.length < neededHaulers;
+                                },
+                            });
+                        }
+                    }
                 }
 
                 // Priority 6: Attackers (only if hostiles present)
@@ -418,7 +477,24 @@ var remoteManager = {
         const mainRoom = spawn.room;
         const energyAvailable = mainRoom.energyAvailable;
 
-        for (const item of queue) {
+        const roomCreepCounts = {};
+        for (const creep of Object.values(Game.creeps)) {
+            if (creep.memory.targetRoom) {
+                roomCreepCounts[creep.memory.targetRoom] =
+                    (roomCreepCounts[creep.memory.targetRoom] || 0) + 1;
+            }
+        }
+
+        const sortedQueue = queue.slice().sort((a, b) => {
+            if (a.priority !== b.priority) {
+                return a.priority - b.priority;
+            }
+            const aCount = roomCreepCounts[a.targetRoom] || 0;
+            const bCount = roomCreepCounts[b.targetRoom] || 0;
+            return aCount - bCount;
+        });
+
+        for (const item of sortedQueue) {
             // Validate entry (might be stale)
             if (!item.validate()) {
                 continue;
@@ -544,19 +620,38 @@ var remoteManager = {
         // Debug: log distribution every 50 ticks
         if (Game.time % 50 === 0) {
             console.log("Remote room distribution:");
+            const firstSpawn = Object.values(Game.spawns)[0];
+            const myUsername =
+                firstSpawn && firstSpawn.owner
+                    ? firstSpawn.owner.username
+                    : null;
             for (const roomName of Memory.remoteRooms) {
                 const creepsForRoom = Object.values(Game.creeps).filter(
                     (c) => c.memory.targetRoom === roomName,
                 );
                 const remoteRoom = Game.rooms[roomName];
-                const reservationTicks =
+                const reservation =
                     remoteRoom && remoteRoom.controller
                         ? remoteRoom.controller.reservation
-                            ? remoteRoom.controller.reservation.ticksToEnd
-                            : 0
-                        : "no vision";
+                        : null;
+                const reservationTicks = reservation
+                    ? reservation.ticksToEnd
+                    : remoteRoom
+                      ? 0
+                      : "no vision";
+                const reservationOwner = reservation
+                    ? reservation.username
+                    : null;
+                const reservationTag =
+                    reservationOwner && myUsername
+                        ? reservationOwner === myUsername
+                            ? "me"
+                            : reservationOwner
+                        : reservationTicks === "no vision"
+                          ? "no vision"
+                          : "none";
                 console.log(
-                    `  ${roomName}: ${creepsForRoom.length} creeps [${creepsForRoom.map((c) => c.name).join(", ") || "none"}] | reservation: ${reservationTicks}`,
+                    `  ${roomName} (Res - ${reservationTicks} (${reservationTag})): ${creepsForRoom.length} creeps [${creepsForRoom.map((c) => c.name).join(", ") || "none"}]`,
                 );
             }
         }

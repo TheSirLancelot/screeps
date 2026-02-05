@@ -104,7 +104,7 @@ function reportEnergyStats(room) {
             const contribution = haulers * 8;
             remoteGeneration += contribution;
             remoteBreakdown.push(
-                `${remoteRoom}: ${contribution}E/tick (${haulers} haulers)`,
+                `${remoteRoom}: ${contribution}E/t (x${haulers})`,
             );
         }
 
@@ -113,16 +113,16 @@ function reportEnergyStats(room) {
         // Format report
         const status =
             energyPerTick > 0
-                ? `SURPLUS (+${Math.round(energyPerTick)}/tick)`
-                : `DEFICIT (${Math.round(energyPerTick)}/tick)`;
+                ? `(+${Math.round(energyPerTick)}E/t)`
+                : `(${Math.round(energyPerTick)}E/t)`;
 
         const remoteReport =
             remoteBreakdown.length > 0
-                ? ` | Remote: ${remoteBreakdown.join(", ")}`
-                : " | Remote: 0E/tick";
+                ? ` | R: ${remoteBreakdown.join(", ")}`
+                : " | R: 0E/t";
 
         console.log(
-            `[${room.name}] ${status} | Storage: ${currentEnergy}E | Local: ${localGeneration}E/tick (${localMiners.length} miners)${remoteReport}`,
+            `[${room.name}] ${status} | S: ${currentEnergy}E | L: ${localGeneration}E/t (x${localMiners.length})${remoteReport}`,
         );
 
         // Update for next cycle

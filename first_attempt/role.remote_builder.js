@@ -364,6 +364,27 @@ var roleRemoteBuilder = {
                 }
             }
 
+            // Check for ruins with energy
+            const ruinsWithEnergy = creep.room.find(FIND_RUINS, {
+                filter: (ruin) => ruin.store[RESOURCE_ENERGY] > 0,
+            });
+
+            if (ruinsWithEnergy.length > 0) {
+                const target = creep.pos.findClosestByPath(ruinsWithEnergy);
+                if (target) {
+                    if (
+                        creep.withdraw(target, RESOURCE_ENERGY) ===
+                        ERR_NOT_IN_RANGE
+                    ) {
+                        creep.moveTo(target, {
+                            visualizePathStyle: { stroke: "#ffaa00" },
+                            reusePath: 20,
+                        });
+                    }
+                    return;
+                }
+            }
+
             // Check for nearby containers first (within range 10)
             const nearbyContainers = creep.pos.findInRange(
                 FIND_STRUCTURES,

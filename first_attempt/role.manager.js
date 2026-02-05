@@ -141,9 +141,6 @@ var roleManager = {
 
             // Update role if it changed
             if (creep.memory.role !== recommendedRole) {
-                console.log(
-                    `${creep.name}: changing role from ${creep.memory.role} to ${recommendedRole}`,
-                );
                 creep.memory.previousRole = creep.memory.role;
                 creep.memory.role = recommendedRole;
                 creep.memory.roleChangedAt = Game.time;
