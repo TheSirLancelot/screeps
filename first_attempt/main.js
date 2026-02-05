@@ -62,19 +62,34 @@ function reportEnergyStats(room) {
                 !c.memory.targetRoom,
         );
 
-        // Count remote haulers (energy inflow from remote rooms)
-        const remoteHaulers = Object.values(Game.creeps).filter(
-            (c) =>
-                c.memory.role === "remote_hauler" &&
-                c.memory.homeRoom === room.name,
-        );
+        // Count remote haulers by target room
+        const remoteHaulersByRoom = {};
+        Memory.remoteRooms = Memory.remoteRooms || [];
+        for (const remoteRoom of Memory.remoteRooms) {
+            const haulersForRoom = Object.values(Game.creeps).filter(
+                (c) =>
+                    c.memory.role === "remote_hauler" &&
+                    c.memory.homeRoom === room.name &&
+                    c.memory.targetRoom === remoteRoom,
+            );
+            remoteHaulersByRoom[remoteRoom] = haulersForRoom.length;
+        }
 
         // Estimate energy generation (5 WORK parts per miner = 10 energy/tick per miner)
         const localGeneration = localMiners.length * 10;
 
         // Remote haulers are harder to estimate but typically carry 50+ energy per trip
         // Assume average 8-10 energy/tick contribution (varies by travel time)
-        const remoteGeneration = remoteHaulers.length * 8;
+        let remoteGeneration = 0;
+        const remoteBreakdown = [];
+        for (const remoteRoom in remoteHaulersByRoom) {
+            const haulers = remoteHaulersByRoom[remoteRoom];
+            const contribution = haulers * 8;
+            remoteGeneration += contribution;
+            remoteBreakdown.push(
+                `${remoteRoom}: ${contribution}E/tick (${haulers} haulers)`,
+            );
+        }
 
         const totalEstimated = localGeneration + remoteGeneration;
 
@@ -84,8 +99,13 @@ function reportEnergyStats(room) {
                 ? `SURPLUS (+${Math.round(energyPerTick)}/tick)`
                 : `DEFICIT (${Math.round(energyPerTick)}/tick)`;
 
+        const remoteReport =
+            remoteBreakdown.length > 0
+                ? ` | Remote: ${remoteBreakdown.join(", ")}`
+                : " | Remote: 0E/tick";
+
         console.log(
-            `[${room.name}] ${status} | Storage: ${currentEnergy}E | Local: ${localGeneration}E/tick (${localMiners.length} miners) + Remote: ${remoteGeneration}E/tick (${remoteHaulers.length} haulers) = ${totalEstimated}E/tick est.`,
+            `[${room.name}] ${status} | Storage: ${currentEnergy}E | Local: ${localGeneration}E/tick (${localMiners.length} miners)${remoteReport}`,
         );
 
         // Update for next cycle
