@@ -4,10 +4,13 @@
  *
  * CONSOLE COMMANDS TO USE:
  *
- * 1. Spawn a remote builder (replace room/spawn names):
+ * 1. Clear cached road plans (use if roads are in wrong location):
+ *    delete Memory.remoteRoadPlans;
+ *
+ * 2. Spawn a remote builder (replace room/spawn names):
  *    Game.spawns['Spawn1'].spawnCreep([WORK, WORK, WORK, WORK, CARRY, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE], 'RemoteBuilder1', {memory: {role: 'remote_builder', targetRoom: 'W1N1', fixedRole: true}});
  *
- * 2. Optional: spawn a second builder if there are multiple sources
+ * 3. Optional: spawn a second builder if there are multiple sources
  *
  * Note: This role auto-creates container sites near sources and road plans from exits to sources.
  */
@@ -28,11 +31,13 @@ function getRoadPlanForSource(room, source) {
         (r) => r.controller && r.controller.my,
     );
     if (!mainRoom) {
+        console.log(`getRoadPlanForSource: No main room found`);
         return null;
     }
 
     const spawns = mainRoom.find(FIND_MY_SPAWNS);
     if (spawns.length === 0) {
+        console.log(`getRoadPlanForSource: No spawns found`);
         return null;
     }
 
@@ -48,6 +53,7 @@ function getRoadPlanForSource(room, source) {
     );
 
     if (searchResult.path.length === 0) {
+        console.log(`getRoadPlanForSource: No path from spawn to ${room.name}`);
         return null;
     }
 
@@ -62,8 +68,15 @@ function getRoadPlanForSource(room, source) {
     }
 
     if (!entryExitPos) {
+        console.log(
+            `getRoadPlanForSource: No entry point found for ${room.name}`,
+        );
         return null;
     }
+
+    console.log(
+        `getRoadPlanForSource: Entry point for ${room.name} is ${entryExitPos.x},${entryExitPos.y}`,
+    );
 
     // Now path from source to the entry point
     const result = PathFinder.search(
@@ -112,45 +125,34 @@ var roleRemoteBuilder = {
                 ? getRoadPlanForSource(creep.room, assignedSource)
                 : null;
             let sites = creep.room.find(FIND_CONSTRUCTION_SITES);
-            if (sites.length === 0) {
-                const terrain = Game.map.getRoomTerrain(creep.room.name);
-                // Always check all sources for container placement, not just assigned one
-                const sources = creep.room.find(FIND_SOURCES);
 
-                // Place as many containers as possible around each source
-                for (const source of sources) {
-                    const nearbyContainers = source.pos.findInRange(
-                        FIND_STRUCTURES,
-                        1,
-                        {
-                            filter: (s) =>
-                                s.structureType === STRUCTURE_CONTAINER,
-                        },
-                    );
-                    const nearbySites = source.pos.findInRange(
-                        FIND_CONSTRUCTION_SITES,
-                        1,
-                        {
-                            filter: (s) =>
-                                s.structureType === STRUCTURE_CONTAINER,
-                        },
-                    );
+            // Check if we need to create more sites (containers or roads)
+            const terrain = Game.map.getRoomTerrain(creep.room.name);
+            const sources = creep.room.find(FIND_SOURCES);
 
-                    const totalContainers =
-                        nearbyContainers.length + nearbySites.length;
+            // Place ONE container per source (at best position near source)
+            for (const source of sources) {
+                const nearbyContainers = source.pos.findInRange(
+                    FIND_STRUCTURES,
+                    1,
+                    {
+                        filter: (s) => s.structureType === STRUCTURE_CONTAINER,
+                    },
+                );
+                const nearbySites = source.pos.findInRange(
+                    FIND_CONSTRUCTION_SITES,
+                    1,
+                    {
+                        filter: (s) => s.structureType === STRUCTURE_CONTAINER,
+                    },
+                );
 
-                    // Try to place containers in all valid spots around the source
+                // Only create one container per source
+                if (nearbyContainers.length === 0 && nearbySites.length === 0) {
+                    // Find the best adjacent position
                     for (let dx = -1; dx <= 1; dx += 1) {
                         for (let dy = -1; dy <= 1; dy += 1) {
                             if (dx === 0 && dy === 0) continue;
-
-                            // Stop if we've reached the construction site limit
-                            const currentSites = creep.room.find(
-                                FIND_CONSTRUCTION_SITES,
-                            ).length;
-                            if (currentSites >= 5) {
-                                break;
-                            }
 
                             const x = source.pos.x + dx;
                             const y = source.pos.y + dy;
@@ -172,67 +174,75 @@ var roleRemoteBuilder = {
                                 continue;
                             }
 
+                            // Found a valid spot - place container and stop
                             const pos = new RoomPosition(x, y, creep.room.name);
-                            const result = creep.room.createConstructionSite(
+                            creep.room.createConstructionSite(
                                 pos,
                                 STRUCTURE_CONTAINER,
                             );
+                            break;
                         }
+                        // Break outer loop too if we placed a container
+                        const recheckSites = source.pos.findInRange(
+                            FIND_CONSTRUCTION_SITES,
+                            1,
+                            {
+                                filter: (s) =>
+                                    s.structureType === STRUCTURE_CONTAINER,
+                            },
+                        );
+                        if (recheckSites.length > 0) break;
                     }
                 }
+            }
 
-                sites = creep.room.find(FIND_CONSTRUCTION_SITES);
-                if (sites.length === 0) {
-                    let createdSites = 0;
-                    const maxCreate = 5;
+            // Create road construction sites (up to 5 at a time)
+            const roadSites = creep.room.find(FIND_CONSTRUCTION_SITES, {
+                filter: (s) => s.structureType === STRUCTURE_ROAD,
+            });
 
-                    for (const source of sources) {
-                        const roadPlan = getRoadPlanForSource(
-                            creep.room,
-                            source,
-                        );
-                        if (!roadPlan) {
-                            continue;
+            if (roadSites.length < 5) {
+                let createdSites = roadSites.length;
+                const maxCreate = 5;
+
+                for (const source of sources) {
+                    const roadPlan = getRoadPlanForSource(creep.room, source);
+                    if (!roadPlan) {
+                        continue;
+                    }
+
+                    for (const step of roadPlan) {
+                        if (createdSites >= maxCreate) {
+                            break;
                         }
 
-                        for (const step of roadPlan) {
-                            if (createdSites >= maxCreate) {
-                                break;
-                            }
+                        const x = step.x;
+                        const y = step.y;
+                        const structures = creep.room.lookForAt(
+                            LOOK_STRUCTURES,
+                            x,
+                            y,
+                        );
+                        const sitesAt = creep.room.lookForAt(
+                            LOOK_CONSTRUCTION_SITES,
+                            x,
+                            y,
+                        );
+                        const hasRoad = structures.some(
+                            (s) => s.structureType === STRUCTURE_ROAD,
+                        );
+                        const hasRoadSite = sitesAt.some(
+                            (s) => s.structureType === STRUCTURE_ROAD,
+                        );
 
-                            const x = step.x;
-                            const y = step.y;
-                            const structures = creep.room.lookForAt(
-                                LOOK_STRUCTURES,
-                                x,
-                                y,
+                        if (!hasRoad && !hasRoadSite) {
+                            const pos = new RoomPosition(x, y, creep.room.name);
+                            const result = creep.room.createConstructionSite(
+                                pos,
+                                STRUCTURE_ROAD,
                             );
-                            const sitesAt = creep.room.lookForAt(
-                                LOOK_CONSTRUCTION_SITES,
-                                x,
-                                y,
-                            );
-                            const hasRoad = structures.some(
-                                (s) => s.structureType === STRUCTURE_ROAD,
-                            );
-                            const hasRoadSite = sitesAt.some(
-                                (s) => s.structureType === STRUCTURE_ROAD,
-                            );
-
-                            if (!hasRoad && !hasRoadSite) {
-                                const pos = new RoomPosition(
-                                    x,
-                                    y,
-                                    creep.room.name,
-                                );
-                                const result =
-                                    creep.room.createConstructionSite(
-                                        pos,
-                                        STRUCTURE_ROAD,
-                                    );
-                                if (result === OK) {
-                                    createdSites += 1;
-                                }
+                            if (result === OK) {
+                                createdSites += 1;
                             }
                         }
                     }
