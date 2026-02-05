@@ -16,6 +16,30 @@ var roleUpgrader = {
         }
 
         if (creep.memory.upgrading) {
+            // Check if nearby tower needs energy before upgrading
+            const nearbyTowers = creep.pos.findInRange(FIND_STRUCTURES, 10, {
+                filter: (structure) =>
+                    structure.structureType === STRUCTURE_TOWER &&
+                    structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+            });
+
+            if (nearbyTowers.length > 0 && creep.store[RESOURCE_ENERGY] > 0) {
+                const closestTower = creep.pos.findClosestByPath(nearbyTowers);
+                if (closestTower) {
+                    if (
+                        creep.transfer(closestTower, RESOURCE_ENERGY) ==
+                        ERR_NOT_IN_RANGE
+                    ) {
+                        creep.moveTo(closestTower, {
+                            visualizePathStyle: { stroke: "#ffff00" },
+                            reusePath: 5,
+                        });
+                        return; // Don't upgrade this tick, fill tower first
+                    }
+                }
+            }
+
+            // Upgrade controller
             if (
                 creep.upgradeController(creep.room.controller) ==
                 ERR_NOT_IN_RANGE
