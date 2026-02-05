@@ -156,6 +156,8 @@ var remoteManager = {
         const queue = [];
         Memory.remoteRooms = Memory.remoteRooms || [];
 
+        const reservationThreshold = config.REMOTE_RESERVE_THRESHOLD || 500;
+
         for (const roomName of Memory.remoteRooms) {
             const remoteRoom = Game.rooms[roomName];
             const existingReserver = Object.values(Game.creeps).find(
@@ -163,6 +165,22 @@ var remoteManager = {
                     c.memory.role === "reserver" &&
                     c.memory.targetRoom === roomName,
             );
+            const reservationTicks =
+                remoteRoom && remoteRoom.controller
+                    ? remoteRoom.controller.reservation
+                        ? remoteRoom.controller.reservation.ticksToEnd
+                        : 0
+                    : 0;
+            const remotePathData =
+                Memory.remotePaths && Memory.remotePaths[roomName]
+                    ? Memory.remotePaths[roomName]
+                    : null;
+            const canSpawnReserver =
+                remoteRoom && remoteRoom.controller
+                    ? reservationTicks <= reservationThreshold
+                    : remotePathData && remotePathData.nextReserverTick
+                      ? Game.time >= remotePathData.nextReserverTick
+                      : true;
             const existingBuilders = Object.values(Game.creeps).filter(
                 (c) =>
                     c.memory.role === "remote_builder" &&
@@ -189,8 +207,8 @@ var remoteManager = {
                     c.memory.targetRoom === roomName,
             );
 
-            // Priority 1: Reserver (always needed for reservation)
-            if (!existingReserver) {
+            // Priority 1: Reserver (only when reservation is low or timer allows)
+            if (!existingReserver && canSpawnReserver) {
                 queue.push({
                     priority: 1,
                     type: "reserver",
@@ -530,8 +548,15 @@ var remoteManager = {
                 const creepsForRoom = Object.values(Game.creeps).filter(
                     (c) => c.memory.targetRoom === roomName,
                 );
+                const remoteRoom = Game.rooms[roomName];
+                const reservationTicks =
+                    remoteRoom && remoteRoom.controller
+                        ? remoteRoom.controller.reservation
+                            ? remoteRoom.controller.reservation.ticksToEnd
+                            : 0
+                        : "no vision";
                 console.log(
-                    `  ${roomName}: ${creepsForRoom.length} creeps [${creepsForRoom.map((c) => c.name).join(", ") || "none"}]`,
+                    `  ${roomName}: ${creepsForRoom.length} creeps [${creepsForRoom.map((c) => c.name).join(", ") || "none"}] | reservation: ${reservationTicks}`,
                 );
             }
         }
