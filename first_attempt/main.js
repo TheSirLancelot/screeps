@@ -2,6 +2,7 @@ var roleUpgrader = require("role.upgrader");
 var roleBuilder = require("role.builder");
 var roleRepairer = require("role.repairer");
 var roleHauler = require("role.hauler");
+var roleHarvester = require("role.harvester");
 var roleMiner = require("role.miner");
 var roleReserver = require("role.reserver");
 var roleRemoteBuilder = require("role.remote_builder");
@@ -18,6 +19,7 @@ var config = require("config");
 
 var roleHandlers = {
     miner: roleMiner,
+    harvester: roleHarvester,
     upgrader: roleUpgrader,
     builder: roleBuilder,
     repairer: roleRepairer,
