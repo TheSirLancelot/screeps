@@ -31,6 +31,23 @@ var roleHandlers = {
     attacker: roleAttacker,
 };
 
+/**
+ * Queue a custom creep spawn from console
+ * Usage: queueSpawn('attacker', 'E18S4', {fixedRole: true})
+ */
+global.queueSpawn = function (role, targetRoom, memoryOverrides = {}) {
+    Memory.customSpawnQueue = Memory.customSpawnQueue || [];
+    Memory.customSpawnQueue.push({
+        role,
+        targetRoom,
+        memoryOverrides,
+        queuedAt: Game.time,
+    });
+    console.log(
+        `Queued ${role} for ${targetRoom} (queue size: ${Memory.customSpawnQueue.length})`,
+    );
+};
+
 function reportEnergyStats(room) {
     Memory.energyStats = Memory.energyStats || {};
     Memory.energyStats[room.name] = Memory.energyStats[room.name] || {};

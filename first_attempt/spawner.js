@@ -210,6 +210,82 @@ var spawner = {
             }
         }
 
+        // Process custom spawn queue first (user-requested creeps)
+        if (Memory.customSpawnQueue && Memory.customSpawnQueue.length > 0) {
+            const customItem = Memory.customSpawnQueue[0];
+            const REMOTE_BODIES = {
+                reserver: {
+                    body: [CLAIM, CLAIM, MOVE, MOVE],
+                    cost: 1300,
+                },
+                attacker: {
+                    body: [
+                        ATTACK,
+                        ATTACK,
+                        ATTACK,
+                        ATTACK,
+                        ATTACK,
+                        RANGED_ATTACK,
+                        RANGED_ATTACK,
+                        TOUGH,
+                        TOUGH,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                    ],
+                    cost: 1020,
+                },
+                builder: {
+                    body: [
+                        WORK,
+                        WORK,
+                        WORK,
+                        CARRY,
+                        CARRY,
+                        CARRY,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                        MOVE,
+                    ],
+                    cost: 750,
+                },
+                miner: {
+                    body: [WORK, WORK, WORK, WORK, WORK, CARRY, MOVE],
+                    cost: 350,
+                },
+            };
+
+            const roleDef = REMOTE_BODIES[customItem.role];
+            if (roleDef && energyAvailable >= roleDef.cost) {
+                const body = roleDef.body;
+                const memoryObj = {
+                    role: customItem.role,
+                    targetRoom: customItem.targetRoom,
+                    fixedRole: true,
+                    ...customItem.memoryOverrides,
+                };
+                const name = `${customItem.role}_${Game.time}`;
+                const result = activeSpawn.spawnCreep(body, name, {
+                    memory: memoryObj,
+                });
+
+                if (result === OK) {
+                    console.log(
+                        `Spawning custom ${customItem.role} for ${customItem.targetRoom}: ${name}`,
+                    );
+                    Memory.customSpawnQueue.shift(); // Remove from queue
+                    return; // Spawn one per tick
+                }
+            }
+        }
+
         // Build queue
         const queue = this.buildSpawnQueue(creepCount, calculatedMin, room);
 
