@@ -24,7 +24,11 @@ var roleManager = {
      */
     evaluateCreep: function (creep, room, roleStats) {
         // Dedicated roles (e.g., miners) should not be re-evaluated
-        if (creep.memory.fixedRole === true || creep.memory.role === "miner") {
+        if (
+            creep.memory.fixedRole === true ||
+            creep.memory.role === "miner" ||
+            creep.memory.emergency === true
+        ) {
             return;
         }
         // Stagger evaluations based on a per-creep offset so not all creeps evaluate at once
