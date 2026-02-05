@@ -80,6 +80,7 @@ var creepUtils = {
             creep.memory.role === "remote_builder" ||
             creep.memory.role === "remote_repairer" ||
             creep.memory.role === "remote_hauler" ||
+            creep.memory.role === "attacker" ||
             (creep.memory.role === "miner" && creep.memory.targetRoom)
         ) {
             return;
