@@ -139,9 +139,7 @@ var remoteManager = {
             ).length;
 
             // Calculate recommended minimum for this room (based on RCL)
-            const roomLevel = mainRoom.controller
-                ? mainRoom.controller.level
-                : 0;
+            const roomLevel = room.controller ? room.controller.level : 0;
             const recommendedMinCreeps = config.getMinCreeps(roomLevel);
             const minHaulers = config.MIN_HAULERS || 2;
 
