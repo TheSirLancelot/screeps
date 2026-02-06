@@ -138,8 +138,11 @@ var remoteManager = {
                     c.memory.role === "hauler" && c.memory.fixedRole === true,
             ).length;
 
-            // Calculate recommended minimum for this room
-            const recommendedMinCreeps = config.MIN_CREEPS;
+            // Calculate recommended minimum for this room (based on RCL)
+            const roomLevel = mainRoom.controller
+                ? mainRoom.controller.level
+                : 0;
+            const recommendedMinCreeps = config.getMinCreeps(roomLevel);
             const minHaulers = config.MIN_HAULERS || 2;
 
             // If any main room is understaffed OR missing critical roles, don't spawn remote creeps

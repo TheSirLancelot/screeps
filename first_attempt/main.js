@@ -185,7 +185,8 @@ module.exports.loop = function () {
 
         // Get spawn from cache; fall back to find if cache is stale
         let activeSpawn = null;
-        const cachedSpawnIds = roomData[roomName].spawns || [];
+        const cachedSpawnIds =
+            (roomData[roomName] && roomData[roomName].spawns) || [];
         for (const spawnId of cachedSpawnIds) {
             const spawn = Game.getObjectById(spawnId);
             if (spawn && !spawn.spawning) {
@@ -195,6 +196,11 @@ module.exports.loop = function () {
         }
         if (!activeSpawn && cachedSpawnIds.length > 0) {
             activeSpawn = Game.getObjectById(cachedSpawnIds[0]);
+        }
+        // If cache miss or empty, find spawns directly (happens in new rooms)
+        if (!activeSpawn) {
+            const spawns = room.find(FIND_MY_SPAWNS);
+            activeSpawn = spawns.find((s) => !s.spawning) || spawns[0];
         }
 
         // Log status only when at or below critical creep threshold

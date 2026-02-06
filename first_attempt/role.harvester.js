@@ -57,7 +57,7 @@ var roleHarvester = {
             var targets = [];
 
             if (creep.memory.emergency) {
-                // Emergency: Spawn > Extensions > Tower > Controller
+                // Emergency: Spawn > Extensions > Containers > Controller
                 var spawns = creep.room.find(FIND_STRUCTURES, {
                     filter: (structure) =>
                         structure.structureType == STRUCTURE_SPAWN &&
@@ -75,15 +75,16 @@ var roleHarvester = {
                     if (extensions.length > 0) {
                         targets = extensions;
                     } else {
-                        var towers = creep.room.find(FIND_STRUCTURES, {
+                        var containers = creep.room.find(FIND_STRUCTURES, {
                             filter: (structure) =>
-                                structure.structureType == STRUCTURE_TOWER &&
+                                structure.structureType ==
+                                    STRUCTURE_CONTAINER &&
                                 structure.store.getFreeCapacity(
                                     RESOURCE_ENERGY,
                                 ) > 0,
                         });
-                        if (towers.length > 0) {
-                            targets = towers;
+                        if (containers.length > 0) {
+                            targets = containers;
                         } else if (
                             creep.room.controller &&
                             creep.room.controller.my
@@ -93,63 +94,39 @@ var roleHarvester = {
                     }
                 }
             } else {
-                // Normal: Containers > Storage > Spawn > Extensions > Tower > Controller
-                var containers = creep.room.find(FIND_STRUCTURES, {
+                // Normal: Spawn > Extensions > Containers > Controller
+                var spawns = creep.room.find(FIND_STRUCTURES, {
                     filter: (structure) =>
-                        structure.structureType == STRUCTURE_CONTAINER &&
+                        structure.structureType == STRUCTURE_SPAWN &&
                         structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
                 });
-                if (containers.length > 0) {
-                    targets = containers;
+                if (spawns.length > 0) {
+                    targets = spawns;
                 } else {
-                    var storage = creep.room.find(FIND_STRUCTURES, {
+                    var extensions = creep.room.find(FIND_STRUCTURES, {
                         filter: (structure) =>
-                            structure.structureType == STRUCTURE_STORAGE &&
+                            structure.structureType == STRUCTURE_EXTENSION &&
                             structure.store.getFreeCapacity(RESOURCE_ENERGY) >
                                 0,
                     });
-                    if (storage.length > 0) {
-                        targets = storage;
-                    }
-                }
-
-                if (targets.length === 0) {
-                    var spawns = creep.room.find(FIND_STRUCTURES, {
-                        filter: (structure) =>
-                            structure.structureType == STRUCTURE_SPAWN &&
-                            structure.store.getFreeCapacity(RESOURCE_ENERGY) >
-                                0,
-                    });
-                    if (spawns.length > 0) {
-                        targets = spawns;
+                    if (extensions.length > 0) {
+                        targets = extensions;
                     } else {
-                        var extensions = creep.room.find(FIND_STRUCTURES, {
+                        var containers = creep.room.find(FIND_STRUCTURES, {
                             filter: (structure) =>
                                 structure.structureType ==
-                                    STRUCTURE_EXTENSION &&
+                                    STRUCTURE_CONTAINER &&
                                 structure.store.getFreeCapacity(
                                     RESOURCE_ENERGY,
                                 ) > 0,
                         });
-                        if (extensions.length > 0) {
-                            targets = extensions;
-                        } else {
-                            var towers = creep.room.find(FIND_STRUCTURES, {
-                                filter: (structure) =>
-                                    structure.structureType ==
-                                        STRUCTURE_TOWER &&
-                                    structure.store.getFreeCapacity(
-                                        RESOURCE_ENERGY,
-                                    ) > 0,
-                            });
-                            if (towers.length > 0) {
-                                targets = towers;
-                            } else if (
-                                creep.room.controller &&
-                                creep.room.controller.my
-                            ) {
-                                targets = [creep.room.controller];
-                            }
+                        if (containers.length > 0) {
+                            targets = containers;
+                        } else if (
+                            creep.room.controller &&
+                            creep.room.controller.my
+                        ) {
+                            targets = [creep.room.controller];
                         }
                     }
                 }

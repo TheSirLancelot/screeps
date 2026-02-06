@@ -78,8 +78,11 @@ var creepCalculator = {
             totalCreeps += config.MIN_HAULERS;
         }
 
-        // Ensure we're always recommending at least MIN_CREEPS
-        totalCreeps = Math.max(totalCreeps, config.MIN_CREEPS);
+        // Ensure we're always recommending at least MIN_CREEPS (based on room level)
+        const minCreeps = config.getMinCreeps(
+            room.controller ? room.controller.level : 0,
+        );
+        totalCreeps = Math.max(totalCreeps, minCreeps);
 
         return totalCreeps;
     },

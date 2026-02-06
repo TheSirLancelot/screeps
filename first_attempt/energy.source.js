@@ -7,7 +7,7 @@
 var energySource = {
     /**
      * Find and commit to an energy source for a creep
-     * Prioritizes: Storage > Containers > Sources
+     * Prioritizes: Storage > Containers > Sources (if RCL < 3)
      * Once committed, sticks to that source until empty
      *
      * @param {Creep} creep - The creep looking for energy
@@ -82,15 +82,17 @@ var energySource = {
             }
         }
 
-        // Priority 3: Sources (only if no containers exist anywhere in the room)
+        // Priority 3: Sources (if RCL < 3, allow early game harvesting)
         // Otherwise wait for containers to be filled
-        // TODO: Add emergency fallback - if creep energy < 50 or all containers empty, allow source harvesting
+        const roomLevel = creep.room.controller
+            ? creep.room.controller.level
+            : 0;
         const containerCount = creep.room.find(FIND_STRUCTURES, {
             filter: (s) => s.structureType === STRUCTURE_CONTAINER,
         }).length;
 
-        if (containerCount === 0) {
-            // No containers exist, use sources as fallback
+        if (roomLevel < 3 || containerCount === 0) {
+            // In early game or if no containers exist, use sources as fallback
             var sources = creep.room.find(FIND_SOURCES, {
                 filter: (source) => source.energy > 0,
             });

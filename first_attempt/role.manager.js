@@ -50,9 +50,34 @@ var roleManager = {
         if (shouldReevaluate) {
             let recommendedRole = roleEvaluator.evaluateRole(room, creep);
 
+            const roomLevel = room.controller ? room.controller.level : 0;
+
+            // Level up harvesters to miners at RCL 3+ for better energy efficiency
+            if (
+                roomLevel >= 3 &&
+                creep.memory.role === "harvester" &&
+                creep.memory.emergency !== true
+            ) {
+                console.log(
+                    `${creep.name}: upgrading from harvester to miner (RCL ${roomLevel})`,
+                );
+                creep.memory.role = "miner";
+                creep.memory.fixedRole = true;
+                // Assign to a source
+                const sources = room.find(FIND_SOURCES);
+                if (sources.length > 0) {
+                    creep.memory.sourceId = sources[0].id;
+                }
+                return;
+            }
+
             // EMERGENCY: If hostiles in room, everyone becomes hauler to keep towers full
             const hostiles = room.find(FIND_HOSTILE_CREEPS);
-            if (hostiles.length > 0 && recommendedRole !== "hauler") {
+            if (
+                roomLevel > 2 &&
+                hostiles.length > 0 &&
+                recommendedRole !== "hauler"
+            ) {
                 console.log(
                     `${creep.name}: EMERGENCY - forcing role to hauler (${hostiles.length} hostiles in room)`,
                 );
@@ -68,6 +93,7 @@ var roleManager = {
                 }
             }
             if (
+                roomLevel > 2 &&
                 totalCreeps <= config.CRITICAL_CREEPS &&
                 recommendedRole !== "hauler"
             ) {
@@ -96,6 +122,19 @@ var roleManager = {
                 }
             } catch (e) {
                 // If roleStats isn't provided for some reason, skip this check
+            }
+
+            // Ensure at least one repairer to maintain structures
+            const repairers =
+                roleStats && roleStats.repairer ? roleStats.repairer : 0;
+            if (
+                repairers < config.MIN_REPAIRERS &&
+                recommendedRole !== "repairer"
+            ) {
+                console.log(
+                    `${creep.name}: forcing role to repairer (repairers ${repairers} < ${config.MIN_REPAIRERS})`,
+                );
+                recommendedRole = "repairer";
             }
 
             // Prevent switching away from upgrader if it would drop below minimum

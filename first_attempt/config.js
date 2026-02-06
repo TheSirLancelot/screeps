@@ -19,8 +19,20 @@ var config = {
     // Role Manager - minimum number of upgraders to maintain
     MIN_UPGRADERS: 1,
 
-    // Spawner - target number of creeps to maintain
-    MIN_CREEPS: 5,
+    // Role Manager - minimum number of repairers to maintain
+    MIN_REPAIRERS: 1,
+
+    // Spawner - dynamic target number of creeps based on room level
+    // RCL <= 3: 10 creeps, RCL 4: 8 creeps, RCL >= 5: 6 creeps
+    getMinCreeps: function (roomLevel) {
+        if (roomLevel <= 3) {
+            return 10;
+        } else if (roomLevel === 4) {
+            return 8;
+        } else {
+            return 6;
+        }
+    },
 
     // Spawner - population threshold below which to spawn even without full energy
     CRITICAL_CREEPS: 3,

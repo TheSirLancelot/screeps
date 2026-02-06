@@ -16,7 +16,19 @@ var roleBuilder = {
         if (creep.memory.building) {
             var targets = creep.room.find(FIND_CONSTRUCTION_SITES);
             if (targets.length) {
-                var target = creep.pos.findClosestByPath(targets);
+                const prioritized = (type) =>
+                    targets.filter((t) => t.structureType === type);
+
+                const preferredTargets =
+                    prioritized(STRUCTURE_EXTENSION).length > 0
+                        ? prioritized(STRUCTURE_EXTENSION)
+                        : prioritized(STRUCTURE_CONTAINER).length > 0
+                          ? prioritized(STRUCTURE_CONTAINER)
+                          : prioritized(STRUCTURE_ROAD).length > 0
+                            ? prioritized(STRUCTURE_ROAD)
+                            : targets;
+
+                var target = creep.pos.findClosestByPath(preferredTargets);
                 if (target) {
                     if (creep.build(target) == ERR_NOT_IN_RANGE) {
                         creep.moveTo(target, {

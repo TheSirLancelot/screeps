@@ -2,7 +2,6 @@ var config = require("config");
 var creepCalculator = require("creep.calculator");
 var remoteManager = require("remote.manager");
 
-const MIN_CREEPS = config.MIN_CREEPS;
 const CRITICAL_CREEPS = config.CRITICAL_CREEPS;
 const MIN_HAULERS = config.MIN_HAULERS;
 
@@ -12,19 +11,24 @@ function buildMinerBody() {
 }
 
 function buildHaulerBody(room, creepCount) {
-    // Haulers with 10 CARRY + 10 MOVE (1:1 ratio) = 1000 energy
+    // Haulers with 1 WORK + 10 CARRY + 10 MOVE = 1100 energy
     // This allows frequent spawning and keeps miners from backing up
+    // The WORK allows them to repair roads while moving
     const energyAvailable = room.energyAvailable;
     const config = require("config");
 
-    // Target body: 10 CARRY + 10 MOVE
+    // Target body: 1 WORK + 10 CARRY + 10 MOVE
+    const targetWork = 1;
     const targetCarry = 10;
     const targetMove = 10;
-    const targetCost = (targetCarry + targetMove) * BODYPART_COST[CARRY]; // 1000 energy
+    const targetCost =
+        targetWork * BODYPART_COST[WORK] +
+        (targetCarry + targetMove) * BODYPART_COST[CARRY]; // 1100 energy
 
     if (energyAvailable >= targetCost) {
         // Build target body
         const body = [];
+        body.push(WORK);
         for (let i = 0; i < targetCarry; i += 1) {
             body.push(CARRY);
         }
@@ -32,21 +36,9 @@ function buildHaulerBody(room, creepCount) {
             body.push(MOVE);
         }
         return body;
-    } else if (creepCount < config.MIN_CREEPS && energyAvailable >= 400) {
-        // Only scale down if we're below MIN_CREEPS
-        // Minimum viable hauler: 4 CARRY + 4 MOVE (400E)
-        const carryMovePairCost = BODYPART_COST[CARRY] + BODYPART_COST[MOVE]; // 100
-        const pairCount = Math.floor(energyAvailable / carryMovePairCost);
-        const body = [];
-        for (let i = 0; i < pairCount; i += 1) {
-            body.push(CARRY);
-        }
-        for (let i = 0; i < pairCount; i += 1) {
-            body.push(MOVE);
-        }
-        return body;
     } else {
-        // Not enough energy or above MIN_CREEPS - wait for full energy
+        // Not enough energy - wait for full energy
+        // Emergency situations are handled by emergency harvesters
         return null;
     }
 }
@@ -62,7 +54,11 @@ function buildGenericCreepBody(room, creepCount) {
 
     if (energyAvailable >= targetCost) {
         return targetBody;
-    } else if (creepCount < config.MIN_CREEPS && energyAvailable >= 200) {
+    } else if (
+        creepCount <
+            config.getMinCreeps(room.controller ? room.controller.level : 0) &&
+        energyAvailable >= 200
+    ) {
         // Only spawn smaller body if below MIN_CREEPS (emergency)
         // Minimal: 1 WORK + 1 CARRY + 1 MOVE = 200E
         return [WORK, CARRY, MOVE];
@@ -70,6 +66,40 @@ function buildGenericCreepBody(room, creepCount) {
         // Wait for full energy
         return null;
     }
+}
+
+function buildEmergencyHarvesterBody(energyAvailable) {
+    const maxEnergy = Math.min(energyAvailable, 550);
+    const baseCost =
+        BODYPART_COST[WORK] + BODYPART_COST[CARRY] + BODYPART_COST[MOVE]; // 200
+    if (maxEnergy < baseCost) {
+        return null;
+    }
+
+    let workCount = 1;
+    let carryCount = 1;
+    let moveCount = 1;
+    let cost = baseCost;
+
+    while (cost + BODYPART_COST[CARRY] + BODYPART_COST[MOVE] <= maxEnergy) {
+        carryCount += 1;
+        moveCount += 1;
+        cost += BODYPART_COST[CARRY] + BODYPART_COST[MOVE];
+    }
+
+    if (cost + BODYPART_COST[CARRY] <= maxEnergy) {
+        carryCount += 1;
+        cost += BODYPART_COST[CARRY];
+    }
+
+    const body = [WORK];
+    for (let i = 0; i < carryCount; i += 1) {
+        body.push(CARRY);
+    }
+    for (let i = 0; i < moveCount; i += 1) {
+        body.push(MOVE);
+    }
+    return body;
 }
 
 var spawner = {
@@ -118,6 +148,35 @@ var spawner = {
             }
         }
 
+        // Priority 1.5: Maintain harvester population (only in early game)
+        // In early game, harvesters are essential for energy generation
+        // Once RCL >= 3, transition to miners instead
+        const roomLevel = room.controller ? room.controller.level : 0;
+        if (roomLevel < 3) {
+            const harvesters = Object.values(Game.creeps).filter(
+                (c) =>
+                    c.room.name === room.name && c.memory.role === "harvester",
+            ).length;
+            const minHarvesters = config.MIN_HARVESTERS || 2;
+            if (harvesters < minHarvesters) {
+                for (let i = harvesters; i < minHarvesters; i += 1) {
+                    queue.push({
+                        priority: 1.5,
+                        type: "harvester",
+                        validate: () => {
+                            const current = Object.values(Game.creeps).filter(
+                                (c) =>
+                                    c.room.name === room.name &&
+                                    c.memory.role === "harvester",
+                            ).length;
+                            return current < minHarvesters;
+                        },
+                        build: () => buildGenericCreepBody(room, creepCount),
+                    });
+                }
+            }
+        }
+
         // Priority 2: Haulers (until MIN_HAULERS met)
         const dedicatedHaulers = Object.values(Game.creeps).filter(
             (c) =>
@@ -147,7 +206,8 @@ var spawner = {
         }
 
         // Priority 3: Generic creeps (until creep minimum met)
-        const effectiveMin = Math.max(calculatedMin, config.MIN_CREEPS);
+        const minCreeps = config.getMinCreeps(roomLevel);
+        const effectiveMin = Math.max(calculatedMin, minCreeps);
         if (creepCount < effectiveMin) {
             for (let i = creepCount; i < effectiveMin; i += 1) {
                 queue.push({
@@ -187,9 +247,12 @@ var spawner = {
         const config = require("config");
         const CRITICAL_CREEPS = config.CRITICAL_CREEPS;
 
-        // Emergency bootstrap: if critically low on creeps, spawn a 300E worker ASAP
-        if (creepCount < CRITICAL_CREEPS && energyAvailable >= 300) {
-            const emergencyBody = [WORK, WORK, CARRY, MOVE]; // 300 energy
+        // Emergency bootstrap: if critically low on creeps, spawn a worker ASAP
+        if (creepCount < CRITICAL_CREEPS) {
+            const emergencyBody = buildEmergencyHarvesterBody(energyAvailable);
+            if (!emergencyBody) {
+                return;
+            }
             const emergencyName = `Emergency${Game.time}`;
             const result = activeSpawn.spawnCreep(
                 emergencyBody,
@@ -203,8 +266,12 @@ var spawner = {
                 },
             );
             if (result === OK) {
+                const emergencyCost = emergencyBody.reduce(
+                    (sum, part) => sum + BODYPART_COST[part],
+                    0,
+                );
                 console.log(
-                    `Spawning emergency creep: ${emergencyName} (cost: 300E)`,
+                    `Spawning emergency creep: ${emergencyName} (cost: ${emergencyCost}E)`,
                 );
                 return; // Spawn one per tick
             }
@@ -328,6 +395,9 @@ var spawner = {
             if (item.type === "miner") {
                 memoryObj.role = "miner";
                 memoryObj.sourceId = item.sourceId;
+            } else if (item.type === "harvester") {
+                memoryObj.role = "harvester";
+                memoryObj.fixedRole = true; // Emergency harvesters are specialists
             } else if (item.type === "hauler") {
                 memoryObj.role = "hauler";
             } else if (item.type === "generic") {
